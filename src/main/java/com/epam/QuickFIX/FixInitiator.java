@@ -12,21 +12,18 @@ import quickfix.SessionID;
 import quickfix.SessionSettings;
 import quickfix.SocketInitiator;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.InputStream;
 import java.util.Iterator;
 
 /**
  * Обёртка над {@link SocketInitiator} для управления FIX Initiator-сессией.
  * <p>
- * Загружает конфигурацию из .cfg файла, создаёт все необходимые компоненты
- * QuickFIX/J (store, log, message factory) и предоставляет методы
- * для запуска, остановки и управления сессией.
+ * Создаёт все необходимые компоненты QuickFIX/J (store, log, message factory)
+ * и предоставляет методы для запуска, остановки и управления сессией.
  *
  * <h3>Пример использования:</h3>
  * <pre>{@code
- *   FixInitiator initiator = new FixInitiator("sample-initiator-session.cfg");
+ *   SessionSettings settings = Starter.loadSettings("sample-initiator-session.cfg");
+ *   FixInitiator initiator = new FixInitiator(settings);
  *   initiator.start();
  *   // ... работа с сессией ...
  *   initiator.stop();
@@ -39,14 +36,13 @@ public class FixInitiator {
     private final SessionSettings settings;
 
     /**
-     * Создаёт FIX Initiator из конфигурационного файла.
+     * Создаёт FIX Initiator на основе переданных настроек сессии.
      *
-     * @param configFilePath путь к .cfg файлу (например, {@code "sample-initiator-session.cfg"})
-     * @throws ConfigError           если конфигурация невалидна
-     * @throws FileNotFoundException если файл не найден
+     * @param settings настройки сессии {@link SessionSettings}
+     * @throws ConfigError если конфигурация невалидна
      */
-    public FixInitiator(String configFilePath) throws ConfigError, FileNotFoundException {
-        this.settings = loadSettings(configFilePath);
+    public FixInitiator(SessionSettings settings) throws ConfigError {
+        this.settings = settings;
         this.application = new FixApplication();
 
         MessageStoreFactory storeFactory = new FileStoreFactory(settings);
@@ -144,27 +140,7 @@ public class FixInitiator {
     }
 
     // ── Внутренние методы ───────────────────────────────────────────────
-
-    /**
-     * Загружает {@link SessionSettings} из файла.
-     * Сначала ищет файл в файловой системе, затем в classpath.
-     */
-    private SessionSettings loadSettings(String configFilePath) throws ConfigError, FileNotFoundException {
-        InputStream inputStream;
-        try {
-            inputStream = new FileInputStream(configFilePath);
-            System.out.println("[FIX Initiator] Loaded config from file: " + configFilePath);
-        } catch (FileNotFoundException e) {
-            inputStream = getClass().getClassLoader().getResourceAsStream(configFilePath);
-            if (inputStream == null) {
-                throw new FileNotFoundException("Config file not found: " + configFilePath
-                        + " (checked filesystem and classpath)");
-            }
-            System.out.println("[FIX Initiator] Loaded config from classpath: " + configFilePath);
-        }
-        return new SessionSettings(inputStream);
-    }
-
+    
     /**
      * Выводит информацию о сконфигурированных сессиях.
      */

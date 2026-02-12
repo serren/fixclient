@@ -12,24 +12,21 @@ import quickfix.SessionID;
 import quickfix.SessionSettings;
 import quickfix.SocketAcceptor;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.InputStream;
 import java.util.Iterator;
 
 /**
  * Обёртка над {@link SocketAcceptor} для управления FIX Acceptor-сессией.
  * <p>
- * Загружает конфигурацию из .cfg файла, создаёт все необходимые компоненты
- * QuickFIX/J (store, log, message factory) и предоставляет методы
- * для запуска, остановки и управления сессией.
+ * Создаёт все необходимые компоненты QuickFIX/J (store, log, message factory)
+ * и предоставляет методы для запуска, остановки и управления сессией.
  * <p>
  * Acceptor — серверная сторона FIX-соединения. Он слушает входящие
  * TCP-подключения от Initiator-клиентов и принимает Logon-запросы.
  *
  * <h3>Пример использования:</h3>
  * <pre>{@code
- *   FixAcceptor acceptor = new FixAcceptor("acceptor-session.cfg");
+ *   SessionSettings settings = Starter.loadSettings("acceptor-session.cfg");
+ *   FixAcceptor acceptor = new FixAcceptor(settings);
  *   acceptor.start();
  *   // ... приём подключений от Initiator-клиентов ...
  *   acceptor.stop();
@@ -42,14 +39,13 @@ public class FixAcceptor {
     private final SessionSettings settings;
 
     /**
-     * Создаёт FIX Acceptor из конфигурационного файла.
+     * Создаёт FIX Acceptor на основе переданных настроек сессии.
      *
-     * @param configFilePath путь к .cfg файлу (например, {@code "acceptor-session.cfg"})
-     * @throws ConfigError           если конфигурация невалидна
-     * @throws FileNotFoundException если файл не найден
+     * @param settings настройки сессии {@link SessionSettings}
+     * @throws ConfigError если конфигурация невалидна
      */
-    public FixAcceptor(String configFilePath) throws ConfigError, FileNotFoundException {
-        this.settings = loadSettings(configFilePath);
+    public FixAcceptor(SessionSettings settings) throws ConfigError {
+        this.settings = settings;
         this.application = new FixApplication();
 
         MessageStoreFactory storeFactory = new FileStoreFactory(settings);
@@ -213,27 +209,7 @@ public class FixAcceptor {
     }
 
     // ── Внутренние методы ───────────────────────────────────────────────
-
-    /**
-     * Загружает {@link SessionSettings} из файла.
-     * Сначала ищет файл в файловой системе, затем в classpath.
-     */
-    private SessionSettings loadSettings(String configFilePath) throws ConfigError, FileNotFoundException {
-        InputStream inputStream;
-        try {
-            inputStream = new FileInputStream(configFilePath);
-            System.out.println("[FIX Acceptor] Loaded config from file: " + configFilePath);
-        } catch (FileNotFoundException e) {
-            inputStream = getClass().getClassLoader().getResourceAsStream(configFilePath);
-            if (inputStream == null) {
-                throw new FileNotFoundException("Config file not found: " + configFilePath
-                        + " (checked filesystem and classpath)");
-            }
-            System.out.println("[FIX Acceptor] Loaded config from classpath: " + configFilePath);
-        }
-        return new SessionSettings(inputStream);
-    }
-
+    
     /**
      * Выводит информацию о сконфигурированных сессиях.
      */

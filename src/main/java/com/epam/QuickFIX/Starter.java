@@ -1,9 +1,12 @@
 package com.epam.QuickFIX;
 
+import quickfix.ConfigError;
 import quickfix.SessionSettings;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
 import java.util.Scanner;
 
 /**
@@ -36,12 +39,20 @@ public class Starter {
             if (configPath == null) {
                 return;
             }
+    
+            SessionSettings settings = loadSettings(configPath);
+            String connectionType = detectConnectionType(settings);
+            if (connectionType.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "ConnectionType is not specified in config file: " + configPath
+                                + "\n  Add 'ConnectionType=initiator' or 'ConnectionType=acceptor' to [DEFAULT] section.");
+            }
 
-            String connectionType = detectConnectionType(configPath);
+            System.out.println("[Starter] Detected ConnectionType: " + connectionType);
 
             switch (connectionType) {
-                case CONNECTION_TYPE_INITIATOR -> startInitiator(configPath);
-                case CONNECTION_TYPE_ACCEPTOR -> startAcceptor(configPath);
+                case CONNECTION_TYPE_INITIATOR -> startInitiator(settings);
+                case CONNECTION_TYPE_ACCEPTOR -> startAcceptor(settings);
                 default -> {
                     System.err.println("[ERROR] Unknown ConnectionType: '" + connectionType + "'");
                     System.err.println("  Supported values: initiator, acceptor");
@@ -56,41 +67,32 @@ public class Starter {
     /**
      * Запускает приложение в режиме Initiator.
      */
-    private static void startInitiator(String configPath) throws Exception {
-        FixInitiator fixInitiator = new FixInitiator(configPath);
+    private static void startInitiator(SessionSettings settings) throws Exception {
+        FixInitiator fixInitiator = new FixInitiator(settings);
         fixInitiator.start();
         runInitiatorCommandLoop(fixInitiator);
     }
-
+    
     /**
      * Запускает приложение в режиме Acceptor.
      */
-    private static void startAcceptor(String configPath) throws Exception {
-        FixAcceptor fixAcceptor = new FixAcceptor(configPath);
+    private static void startAcceptor(SessionSettings settings) throws Exception {
+        FixAcceptor fixAcceptor = new FixAcceptor(settings);
         fixAcceptor.start();
         runAcceptorCommandLoop(fixAcceptor);
     }
 
     /**
-     * Определяет тип подключения (initiator/acceptor) из конфигурационного файла.
+     * Определяет тип подключения (initiator/acceptor) из загруженных настроек.
      *
-     * @param configPath путь к .cfg файлу
+     * @param settings   загруженные настройки сессии
      * @return значение ConnectionType в нижнем регистре
-     * @throws Exception если не удалось прочитать конфигурацию
      */
-    private static String detectConnectionType(String configPath) throws Exception {
-        SessionSettings settings = new SessionSettings(new FileInputStream(configPath));
-        String connectionType = settings.getDefaultProperties()
-                .getProperty("ConnectionType", "").trim().toLowerCase();
-
-        if (connectionType.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "ConnectionType is not specified in config file: " + configPath
-                            + "\n  Add 'ConnectionType=initiator' or 'ConnectionType=acceptor' to [DEFAULT] section.");
-        }
-
-        System.out.println("[Starter] Detected ConnectionType: " + connectionType);
-        return connectionType;
+    private static String detectConnectionType(SessionSettings settings) {
+        return settings.getDefaultProperties()
+                .getProperty("ConnectionType", "")
+                .trim()
+                .toLowerCase();
     }
 
     /**
@@ -142,6 +144,34 @@ public class Starter {
         return configPath;
     }
 
+    // ── Загрузка конфигурации ────────────────────────────────────────
+    
+    /**
+     * Загружает {@link SessionSettings} из файла.
+     * <p>
+     * Сначала ищет файл в файловой системе, затем в classpath.
+     *
+     * @param configFilePath путь к .cfg файлу
+     * @return загруженные настройки сессии
+     * @throws ConfigError           если конфигурация невалидна
+     * @throws FileNotFoundException если файл не найден
+     */
+    public static SessionSettings loadSettings(String configFilePath) throws ConfigError, FileNotFoundException {
+        InputStream inputStream;
+        try {
+            inputStream = new FileInputStream(configFilePath);
+            System.out.println("[Starter] Loaded config from file: " + configFilePath);
+        } catch (FileNotFoundException e) {
+            inputStream = Starter.class.getClassLoader().getResourceAsStream(configFilePath);
+            if (inputStream == null) {
+                throw new FileNotFoundException("Config file not found: " + configFilePath
+                        + " (checked filesystem and classpath)");
+            }
+            System.out.println("[Starter] Loaded config from classpath: " + configFilePath);
+        }
+        return new SessionSettings(inputStream);
+    }
+    
     // ── Интерактивные циклы команд ──────────────────────────────────────
 
     /**
