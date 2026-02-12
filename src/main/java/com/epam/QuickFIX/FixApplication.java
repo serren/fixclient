@@ -10,7 +10,16 @@ import quickfix.RejectLogon;
 import quickfix.Session;
 import quickfix.SessionID;
 import quickfix.UnsupportedMessageType;
+import quickfix.field.AvgPx;
+import quickfix.field.ClOrdID;
+import quickfix.field.CumQty;
+import quickfix.field.ExecID;
+import quickfix.field.ExecType;
+import quickfix.field.LeavesQty;
 import quickfix.field.MsgType;
+import quickfix.field.OrdStatus;
+import quickfix.field.OrderID;
+import quickfix.field.Symbol;
 import quickfix.field.Text;
 
 import java.time.LocalDateTime;
@@ -39,6 +48,9 @@ public class FixApplication implements Application {
 
     /** Connection type: "acceptor" or "initiator". Set externally. */
     private String connectionType = "";
+    
+    /** Latency tracker for measuring order round-trip times. Set externally. */
+    private LatencyTracker latencyTracker;
 
     /**
      * Sets the connection type for correct operating mode detection.
@@ -47,6 +59,15 @@ public class FixApplication implements Application {
      */
     public void setConnectionType(String connectionType) {
         this.connectionType = connectionType == null ? "" : connectionType.trim().toLowerCase();
+    }
+    
+    /**
+     * Sets the latency tracker for recording ExecutionReport round-trip times.
+     *
+     * @param latencyTracker latency tracker instance
+     */
+    public void setLatencyTracker(LatencyTracker latencyTracker) {
+        this.latencyTracker = latencyTracker;
     }
 
     // ── Lifecycle callbacks ─────────────────────────────────────────────
@@ -219,7 +240,106 @@ public class FixApplication implements Application {
     @Override
     public void fromApp(Message message, SessionID sessionId)
             throws FieldNotFound, IncorrectDataFormat, IncorrectTagValue, UnsupportedMessageType {
-        log("APP IN", sessionId, "Received: " + message.toRawString().replace('\001', '|'));
+        String msgType = message.getHeader().getString(MsgType.FIELD);
+    
+        if (MsgType.EXECUTION_REPORT.equals(msgType)) {
+            handleExecutionReport(message, sessionId);
+        } else {
+            log("APP IN", sessionId, "Received: " + message.toRawString().replace('\001', '|'));
+        }
+    }
+    
+    /**
+     * Handles an incoming ExecutionReport (35=8).
+     * Extracts key fields, measures round-trip latency, and logs the result.
+     *
+     * @param message   the ExecutionReport message
+     * @param sessionId session identifier
+     */
+    private void handleExecutionReport(Message message, SessionID sessionId) {
+        try {
+            String clOrdId = message.getString(ClOrdID.FIELD);
+            String orderId = getFieldSafe(message, OrderID.FIELD);
+            String execId = getFieldSafe(message, ExecID.FIELD);
+            char execType = message.getChar(ExecType.FIELD);
+            char ordStatus = message.getChar(OrdStatus.FIELD);
+            String symbol = getFieldSafe(message, Symbol.FIELD);
+            String cumQty = getFieldSafe(message, CumQty.FIELD);
+            String leavesQty = getFieldSafe(message, LeavesQty.FIELD);
+            String avgPx = getFieldSafe(message, AvgPx.FIELD);
+    
+            String execTypeStr = describeExecType(execType);
+            String ordStatusStr = describeOrdStatus(ordStatus);
+    
+            // Measure round-trip latency
+            String latencyInfo = "";
+            if (latencyTracker != null) {
+                double latencyMs = latencyTracker.recordReceiveTime(clOrdId);
+                if (latencyMs >= 0) {
+                    latencyInfo = String.format(" | RTT=%.3f ms", latencyMs);
+                }
+            }
+    
+            log("EXEC REPORT", sessionId,
+                    String.format("ClOrdID=%s, OrderID=%s, ExecID=%s, ExecType=%s, OrdStatus=%s, "
+                                    + "Symbol=%s, CumQty=%s, LeavesQty=%s, AvgPx=%s%s",
+                            clOrdId, orderId, execId, execTypeStr, ordStatusStr,
+                            symbol, cumQty, leavesQty, avgPx, latencyInfo));
+    
+        } catch (FieldNotFound e) {
+            log("EXEC REPORT", sessionId,
+                    "ExecutionReport received (parse error: " + e.getMessage() + "): "
+                            + message.toRawString().replace('\001', '|'));
+        }
+    }
+    
+    /**
+     * Safely extracts a string field from a message. Returns "N/A" if the field is missing.
+     */
+    private String getFieldSafe(Message message, int field) {
+        try {
+            return message.getString(field);
+        } catch (FieldNotFound e) {
+            return "N/A";
+        }
+    }
+    
+    /**
+     * Returns a human-readable description of the ExecType (150) field.
+     */
+    private String describeExecType(char execType) {
+        return switch (execType) {
+            case ExecType.NEW -> "NEW";
+            case ExecType.PARTIAL_FILL -> "PARTIAL_FILL";
+            case ExecType.FILL -> "FILL";
+            case ExecType.CANCELED -> "CANCELED";
+            case ExecType.REPLACED -> "REPLACED";
+            case ExecType.PENDING_CANCEL -> "PENDING_CANCEL";
+            case ExecType.REJECTED -> "REJECTED";
+            case ExecType.PENDING_NEW -> "PENDING_NEW";
+            case ExecType.PENDING_REPLACE -> "PENDING_REPLACE";
+            case ExecType.TRADE -> "TRADE";
+            case ExecType.ORDER_STATUS -> "ORDER_STATUS";
+            default -> "UNKNOWN(" + execType + ")";
+        };
+    }
+    
+    /**
+     * Returns a human-readable description of the OrdStatus (39) field.
+     */
+    private String describeOrdStatus(char ordStatus) {
+        return switch (ordStatus) {
+            case OrdStatus.NEW -> "NEW";
+            case OrdStatus.PARTIALLY_FILLED -> "PARTIALLY_FILLED";
+            case OrdStatus.FILLED -> "FILLED";
+            case OrdStatus.CANCELED -> "CANCELED";
+            case OrdStatus.REPLACED -> "REPLACED";
+            case OrdStatus.PENDING_CANCEL -> "PENDING_CANCEL";
+            case OrdStatus.REJECTED -> "REJECTED";
+            case OrdStatus.PENDING_NEW -> "PENDING_NEW";
+            case OrdStatus.PENDING_REPLACE -> "PENDING_REPLACE";
+            default -> "UNKNOWN(" + ordStatus + ")";
+        };
     }
 
     // ── Helper methods ──────────────────────────────────────────────────

@@ -34,6 +34,8 @@ public class FixInitiator {
     private final SocketInitiator initiator;
     private final FixApplication application;
     private final SessionSettings settings;
+    private final LatencyTracker latencyTracker;
+    private final OrderService orderService;
 
     /**
      * Creates a FIX Initiator based on the provided session settings.
@@ -43,8 +45,11 @@ public class FixInitiator {
      */
     public FixInitiator(SessionSettings settings) throws ConfigError {
         this.settings = settings;
+        this.latencyTracker = new LatencyTracker();
+        this.orderService = new OrderService(latencyTracker);
         this.application = new FixApplication();
         this.application.setConnectionType("initiator");
+        this.application.setLatencyTracker(latencyTracker);
     
         MessageStoreFactory storeFactory = new FileStoreFactory(settings);
         LogFactory logFactory = new FileLogFactory(settings);
@@ -126,6 +131,28 @@ public class FixInitiator {
         return false;
     }
 
+    /**
+     * Returns the {@link OrderService} for sending orders.
+     */
+    public OrderService getOrderService() {
+        return orderService;
+    }
+    
+    /**
+     * Returns the {@link LatencyTracker} for viewing latency statistics.
+     */
+    public LatencyTracker getLatencyTracker() {
+        return latencyTracker;
+    }
+    
+    /**
+     * Returns the first available {@link SessionID}, or {@code null} if none.
+     */
+    public SessionID getSessionId() {
+        Iterator<SessionID> it = initiator.getSessions().iterator();
+        return it.hasNext() ? it.next() : null;
+    }
+    
     /**
      * Returns the {@link FixApplication} object for direct access to callbacks.
      */

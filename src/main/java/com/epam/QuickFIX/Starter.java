@@ -1,7 +1,9 @@
 package com.epam.QuickFIX;
 
 import quickfix.ConfigError;
+import quickfix.SessionID;
 import quickfix.SessionSettings;
+import quickfix.field.Side;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -183,6 +185,10 @@ public class Starter {
     private static void runInitiatorCommandLoop(FixInitiator fixInitiator) {
         System.out.println("\n╔══════════════════════════════════════════════╗");
         System.out.println("║     FIX Initiator — Available commands:      ║");
+        System.out.println("║  order   — send a NewOrderSingle             ║");
+        System.out.println("║  batch   — send a batch of orders            ║");
+        System.out.println("║  stats   — show round-trip latency stats     ║");
+        System.out.println("║  reset   — reset latency statistics          ║");
         System.out.println("║  status  — check session status              ║");
         System.out.println("║  logout  — send Logout and disconnect        ║");
         System.out.println("║  quit    — stop initiator and exit           ║");
@@ -194,6 +200,10 @@ public class Starter {
                 String command = scanner.nextLine().trim().toLowerCase();
 
                 switch (command) {
+                    case "order" -> handleOrderCommand(scanner, fixInitiator);
+                    case "batch" -> handleBatchCommand(scanner, fixInitiator);
+                    case "stats" -> fixInitiator.getLatencyTracker().printStatistics();
+                    case "reset" -> fixInitiator.getLatencyTracker().reset();
                     case "status" -> {
                         boolean loggedOn = fixInitiator.isLoggedOn();
                         System.out.println("Session status: " + (loggedOn ? "LOGGED ON ✓" : "DISCONNECTED ✗"));
@@ -209,7 +219,7 @@ public class Starter {
                         System.out.println("Goodbye!");
                         return;
                     }
-                    case "help" -> System.out.println("Commands: status, logout, quit, help");
+                    case "help" -> System.out.println("Commands: order, batch, stats, reset, status, logout, quit, help");
                     case "" -> { /* ignore empty input */ }
                     default ->
                             System.out.println("Unknown command: '" + command + "'. Type 'help' for available commands.");
@@ -260,6 +270,120 @@ public class Starter {
                             System.out.println("Unknown command: '" + command + "'. Type 'help' for available commands.");
                 }
             }
+        }
+    }
+
+    // ── Order command handlers ──────────────────────────────────────────
+
+    /**
+     * Handles the interactive "order" command.
+     * Prompts the user for order parameters and sends a NewOrderSingle.
+     *
+     * @param scanner      console input scanner
+     * @param fixInitiator the FIX initiator instance
+     */
+    private static void handleOrderCommand(Scanner scanner, FixInitiator fixInitiator) {
+        if (!fixInitiator.isLoggedOn()) {
+            System.out.println("[ERROR] Cannot send order — session is not logged on.");
+            return;
+        }
+
+        SessionID sessionId = fixInitiator.getSessionId();
+        if (sessionId == null) {
+            System.out.println("[ERROR] No session available.");
+            return;
+        }
+
+        try {
+            System.out.print("  Symbol (e.g., AAPL): ");
+            String symbol = scanner.nextLine().trim();
+            if (symbol.isEmpty()) {
+                System.out.println("[ERROR] Symbol cannot be empty.");
+                return;
+            }
+
+            System.out.print("  Side (BUY/SELL) [BUY]: ");
+            String sideStr = scanner.nextLine().trim().toUpperCase();
+            char side = sideStr.isEmpty() || sideStr.equals("BUY") ? Side.BUY : Side.SELL;
+
+            System.out.print("  Quantity [100]: ");
+            String qtyStr = scanner.nextLine().trim();
+            double quantity = qtyStr.isEmpty() ? 100 : Double.parseDouble(qtyStr);
+
+            System.out.print("  Order type (LIMIT/MARKET) [LIMIT]: ");
+            String typeStr = scanner.nextLine().trim().toUpperCase();
+            boolean isMarket = typeStr.equals("MARKET");
+
+            OrderService orderService = fixInitiator.getOrderService();
+
+            if (isMarket) {
+                orderService.sendMarketOrder(sessionId, symbol, side, quantity);
+            } else {
+                System.out.print("  Price [100.00]: ");
+                String priceStr = scanner.nextLine().trim();
+                double price = priceStr.isEmpty() ? 100.00 : Double.parseDouble(priceStr);
+                orderService.sendLimitOrder(sessionId, symbol, side, quantity, price);
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("[ERROR] Invalid number format: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handles the interactive "batch" command.
+     * Prompts the user for parameters and sends a batch of orders for latency benchmarking.
+     *
+     * @param scanner      console input scanner
+     * @param fixInitiator the FIX initiator instance
+     */
+    private static void handleBatchCommand(Scanner scanner, FixInitiator fixInitiator) {
+        if (!fixInitiator.isLoggedOn()) {
+            System.out.println("[ERROR] Cannot send orders — session is not logged on.");
+            return;
+        }
+
+        SessionID sessionId = fixInitiator.getSessionId();
+        if (sessionId == null) {
+            System.out.println("[ERROR] No session available.");
+            return;
+        }
+
+        try {
+            System.out.print("  Symbol [AAPL]: ");
+            String symbol = scanner.nextLine().trim();
+            if (symbol.isEmpty()) symbol = "AAPL";
+
+            System.out.print("  Side (BUY/SELL) [BUY]: ");
+            String sideStr = scanner.nextLine().trim().toUpperCase();
+            char side = sideStr.isEmpty() || sideStr.equals("BUY") ? Side.BUY : Side.SELL;
+
+            System.out.print("  Quantity per order [100]: ");
+            String qtyStr = scanner.nextLine().trim();
+            double quantity = qtyStr.isEmpty() ? 100 : Double.parseDouble(qtyStr);
+
+            System.out.print("  Price [100.00]: ");
+            String priceStr = scanner.nextLine().trim();
+            double price = priceStr.isEmpty() ? 100.00 : Double.parseDouble(priceStr);
+
+            System.out.print("  Number of orders [10]: ");
+            String countStr = scanner.nextLine().trim();
+            int count = countStr.isEmpty() ? 10 : Integer.parseInt(countStr);
+
+            System.out.printf("[Batch] Sending %d orders: %s %s %.0f @ %.2f ...%n",
+                    count, side == Side.BUY ? "BUY" : "SELL", symbol, quantity, price);
+
+            long startTime = System.nanoTime();
+            int sent = fixInitiator.getOrderService().sendBatch(sessionId, symbol, side, quantity, price, count);
+            long elapsed = System.nanoTime() - startTime;
+
+            System.out.printf("[Batch] Sent %d/%d orders in %.3f ms (%.0f orders/sec)%n",
+                    sent, count,
+                    elapsed / 1_000_000.0,
+                    sent > 0 ? sent / (elapsed / 1_000_000_000.0) : 0);
+            System.out.println("[Batch] Use 'stats' command to view round-trip latency after ExecutionReports arrive.");
+
+        } catch (NumberFormatException e) {
+            System.out.println("[ERROR] Invalid number format: " + e.getMessage());
         }
     }
 }
