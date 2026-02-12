@@ -17,17 +17,19 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Реализация интерфейса {@link Application} для FIX 4.4 Initiator.
+ * Implementation of the {@link Application} interface for FIX Initiator/Acceptor.
  * <p>
- * Обрабатывает жизненный цикл FIX-сессии:
+ * Supports all FIX protocol versions (4.0 — 5.0SP2). The version is determined from the configuration file.
+ * <p>
+ * Handles the FIX session lifecycle:
  * <ul>
- *   <li>{@link #onCreate}       — сессия создана</li>
- *   <li>{@link #onLogon}        — успешный логон</li>
- *   <li>{@link #onLogout}       — логаут (штатный или по ошибке)</li>
- *   <li>{@link #toAdmin}        — исходящее административное сообщение (Logon, Logout, Heartbeat и т.д.)</li>
- *   <li>{@link #fromAdmin}      — входящее административное сообщение</li>
- *   <li>{@link #toApp}          — исходящее прикладное сообщение</li>
- *   <li>{@link #fromApp}        — входящее прикладное сообщение</li>
+ *   <li>{@link #onCreate}       — session created</li>
+ *   <li>{@link #onLogon}        — successful logon</li>
+ *   <li>{@link #onLogout}       — logout (normal or due to error)</li>
+ *   <li>{@link #toAdmin}        — outgoing administrative message (Logon, Logout, Heartbeat, etc.)</li>
+ *   <li>{@link #fromAdmin}      — incoming administrative message</li>
+ *   <li>{@link #toApp}          — outgoing application message</li>
+ *   <li>{@link #fromApp}        — incoming application message</li>
  * </ul>
  */
 public class FixApplication implements Application {
@@ -35,11 +37,23 @@ public class FixApplication implements Application {
     private static final DateTimeFormatter TIMESTAMP_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
+    /** Connection type: "acceptor" or "initiator". Set externally. */
+    private String connectionType = "";
+
+    /**
+     * Sets the connection type for correct operating mode detection.
+     *
+     * @param connectionType "initiator" or "acceptor"
+     */
+    public void setConnectionType(String connectionType) {
+        this.connectionType = connectionType == null ? "" : connectionType.trim().toLowerCase();
+    }
+
     // ── Lifecycle callbacks ─────────────────────────────────────────────
 
     /**
-     * Вызывается при создании новой FIX-сессии.
-     * На этом этапе соединение ещё не установлено.
+     * Called when a new FIX session is created.
+     * At this point, the connection is not yet established.
      */
     @Override
     public void onCreate(SessionID sessionId) {
@@ -47,8 +61,8 @@ public class FixApplication implements Application {
     }
 
     /**
-     * Вызывается после успешного обмена Logon-сообщениями (35=A).
-     * Сессия полностью установлена, можно отправлять прикладные сообщения.
+     * Called after a successful Logon message exchange (35=A).
+     * The session is fully established; application messages can now be sent.
      */
     @Override
     public void onLogon(SessionID sessionId) {
@@ -57,27 +71,25 @@ public class FixApplication implements Application {
                         + ", Target=" + sessionId.getTargetCompID()
                         + ", BeginString=" + sessionId.getBeginString());
     
-        // Если мы работаем в режиме Acceptor, то это значит, что к нам подключился новый клиент
-        if (isAcceptorMode(sessionId)) {
+        // If we are running in Acceptor mode, a new client has connected
+        if (isAcceptorMode()) {
             System.out.println("\n[FIX Acceptor] NEW CLIENT CONNECTED: " + sessionId.getTargetCompID() 
                     + " → " + sessionId.getSenderCompID() + " [" + sessionId.getBeginString() + "]");
         }
     }
     
     /**
-     * Определяет, работает ли сессия в режиме Acceptor.
-     * В режиме Acceptor SenderCompID обычно соответствует серверной стороне (SERVER).
-     * 
-     * @param sessionId идентификатор сессии
-     * @return {@code true} если сессия работает в режиме Acceptor
+     * Determines whether the application is running in Acceptor mode.
+     *
+     * @return {@code true} if the application is running in Acceptor mode
      */
-    private boolean isAcceptorMode(SessionID sessionId) {
-        return "SERVER".equals(sessionId.getSenderCompID());
+    private boolean isAcceptorMode() {
+        return "acceptor".equals(connectionType);
     }
 
     /**
-     * Вызывается при завершении сессии (логаут).
-     * Причины: штатный Logout, разрыв соединения, ошибка sequence numbers и т.д.
+     * Called when the session is terminated (logout).
+     * Reasons: normal Logout, connection loss, sequence number errors, etc.
      */
     @Override
     public void onLogout(SessionID sessionId) {
@@ -85,8 +97,7 @@ public class FixApplication implements Application {
                 "FIX session disconnected. Sender=" + sessionId.getSenderCompID()
                         + ", Target=" + sessionId.getTargetCompID());
     
-        // Если мы работаем в режиме Acceptor, то это значит, что клиент отключился
-        if (isAcceptorMode(sessionId)) {
+        if (isAcceptorMode()) {
             System.out.println("\n[FIX Acceptor] CLIENT DISCONNECTED: " + sessionId.getTargetCompID() 
                     + " → " + sessionId.getSenderCompID() + " [" + sessionId.getBeginString() + "]");
         }
@@ -95,14 +106,14 @@ public class FixApplication implements Application {
     // ── Administrative messages ─────────────────────────────────────────
 
     /**
-     * Вызывается перед отправкой административного сообщения.
+     * Called before sending an administrative message.
      * <p>
-     * Здесь можно модифицировать исходящие Logon/Logout/Heartbeat сообщения.
-     * Например, добавить Username/Password в Logon (35=A).
+     * Outgoing Logon/Logout/Heartbeat messages can be modified here.
+     * For example, Username/Password can be added to Logon (35=A).
      *
-     * @param message   исходящее сообщение
-     * @param sessionId идентификатор сессии
-     * @throws DoNotSend если нужно отменить отправку сообщения
+     * @param message   outgoing message
+     * @param sessionId session identifier
+     * @throws DoNotSend if the message should not be sent
      */
     @Override
     public void toAdmin(Message message, SessionID sessionId) {
@@ -113,7 +124,7 @@ public class FixApplication implements Application {
                 case MsgType.LOGON -> {
                     log("SENDING LOGON", sessionId,
                             "Logon request (35=A) → " + sessionId.getTargetCompID());
-                    // Здесь можно добавить аутентификацию:
+                    // Authentication can be added here:
                     // message.setField(new Username("myUser"));
                     // message.setField(new Password("myPass"));
                 }
@@ -134,17 +145,17 @@ public class FixApplication implements Application {
     }
 
     /**
-     * Вызывается при получении административного сообщения от контрагента.
+     * Called when an administrative message is received from the counterparty.
      * <p>
-     * Здесь можно обработать входящие Logon/Logout, проверить credentials и т.д.
-     * Выброс {@link RejectLogon} отклонит входящий Logon.
+     * Incoming Logon/Logout messages can be processed here, credentials can be verified, etc.
+     * Throwing {@link RejectLogon} will reject the incoming Logon.
      *
-     * @param message   входящее сообщение
-     * @param sessionId идентификатор сессии
-     * @throws FieldNotFound      если обязательное поле отсутствует
-     * @throws IncorrectDataFormat если формат данных некорректен
-     * @throws IncorrectTagValue   если значение тега невалидно
-     * @throws RejectLogon         если нужно отклонить логон контрагента
+     * @param message   incoming message
+     * @param sessionId session identifier
+     * @throws FieldNotFound      if a required field is missing
+     * @throws IncorrectDataFormat if the data format is incorrect
+     * @throws IncorrectTagValue   if a tag value is invalid
+     * @throws RejectLogon         if the counterparty's logon should be rejected
      */
     @Override
     public void fromAdmin(Message message, SessionID sessionId) {
@@ -155,7 +166,7 @@ public class FixApplication implements Application {
                 case MsgType.LOGON -> {
                     log("RECEIVED LOGON", sessionId,
                             "Logon confirmation (35=A) ← " + sessionId.getTargetCompID());
-                    // Здесь можно проверить credentials контрагента:
+                    // Counterparty credentials can be verified here:
                     // if (!isValidCounterparty(message)) throw new RejectLogon("Invalid credentials");
                 }
                 case MsgType.LOGOUT -> {
@@ -183,11 +194,11 @@ public class FixApplication implements Application {
     // ── Application messages ────────────────────────────────────────────
 
     /**
-     * Вызывается перед отправкой прикладного сообщения (NewOrderSingle, Cancel и т.д.).
+     * Called before sending an application message (NewOrderSingle, Cancel, etc.).
      *
-     * @param message   исходящее сообщение
-     * @param sessionId идентификатор сессии
-     * @throws DoNotSend если нужно отменить отправку
+     * @param message   outgoing message
+     * @param sessionId session identifier
+     * @throws DoNotSend if the message should not be sent
      */
     @Override
     public void toApp(Message message, SessionID sessionId) throws DoNotSend {
@@ -195,15 +206,15 @@ public class FixApplication implements Application {
     }
 
     /**
-     * Вызывается при получении прикладного сообщения от контрагента
-     * (ExecutionReport, MarketData и т.д.).
+     * Called when an application message is received from the counterparty
+     * (ExecutionReport, MarketData, etc.).
      *
-     * @param message   входящее сообщение
-     * @param sessionId идентификатор сессии
-     * @throws FieldNotFound           если обязательное поле отсутствует
-     * @throws IncorrectDataFormat     если формат данных некорректен
-     * @throws IncorrectTagValue       если значение тега невалидно
-     * @throws UnsupportedMessageType  если тип сообщения не поддерживается
+     * @param message   incoming message
+     * @param sessionId session identifier
+     * @throws FieldNotFound           if a required field is missing
+     * @throws IncorrectDataFormat     if the data format is incorrect
+     * @throws IncorrectTagValue       if a tag value is invalid
+     * @throws UnsupportedMessageType  if the message type is not supported
      */
     @Override
     public void fromApp(Message message, SessionID sessionId)
@@ -211,13 +222,13 @@ public class FixApplication implements Application {
         log("APP IN", sessionId, "Received: " + message.toRawString().replace('\001', '|'));
     }
 
-    // ── Вспомогательные методы ──────────────────────────────────────────
+    // ── Helper methods ──────────────────────────────────────────────────
 
     /**
-     * Инициирует штатный Logout для указанной сессии.
+     * Initiates a normal Logout for the specified session.
      *
-     * @param sessionId идентификатор сессии
-     * @param reason    причина логаута (опционально)
+     * @param sessionId session identifier
+     * @param reason    logout reason (optional)
      */
     public void initiateLogout(SessionID sessionId, String reason) {
         Session session = Session.lookupSession(sessionId);
@@ -231,10 +242,10 @@ public class FixApplication implements Application {
     }
 
     /**
-     * Проверяет, активна ли указанная сессия (залогинена).
+     * Checks whether the specified session is active (logged on).
      *
-     * @param sessionId идентификатор сессии
-     * @return {@code true} если сессия залогинена
+     * @param sessionId session identifier
+     * @return {@code true} if the session is logged on
      */
     public boolean isLoggedOn(SessionID sessionId) {
         Session session = Session.lookupSession(sessionId);
@@ -242,7 +253,7 @@ public class FixApplication implements Application {
     }
 
     /**
-     * Извлекает текстовое поле (58=Text) из сообщения, если оно присутствует.
+     * Extracts the text field (58=Text) from the message, if present.
      */
     private String extractText(Message message) {
         try {
@@ -253,7 +264,7 @@ public class FixApplication implements Application {
     }
 
     /**
-     * Форматированный вывод в консоль с временной меткой.
+     * Formatted console output with a timestamp.
      */
     private void log(String event, SessionID sessionId, String details) {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FMT);

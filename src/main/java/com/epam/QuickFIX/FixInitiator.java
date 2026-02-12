@@ -15,17 +15,17 @@ import quickfix.SocketInitiator;
 import java.util.Iterator;
 
 /**
- * Обёртка над {@link SocketInitiator} для управления FIX Initiator-сессией.
+ * Wrapper around {@link SocketInitiator} for managing a FIX Initiator session.
  * <p>
- * Создаёт все необходимые компоненты QuickFIX/J (store, log, message factory)
- * и предоставляет методы для запуска, остановки и управления сессией.
+ * Creates all necessary QuickFIX/J components (store, log, message factory)
+ * and provides methods for starting, stopping, and managing the session.
  *
- * <h3>Пример использования:</h3>
+ * <h3>Usage example:</h3>
  * <pre>{@code
  *   SessionSettings settings = Starter.loadSettings("sample-initiator-session.cfg");
  *   FixInitiator initiator = new FixInitiator(settings);
  *   initiator.start();
- *   // ... работа с сессией ...
+ *   // ... working with the session ...
  *   initiator.stop();
  * }</pre>
  */
@@ -36,15 +36,16 @@ public class FixInitiator {
     private final SessionSettings settings;
 
     /**
-     * Создаёт FIX Initiator на основе переданных настроек сессии.
+     * Creates a FIX Initiator based on the provided session settings.
      *
-     * @param settings настройки сессии {@link SessionSettings}
-     * @throws ConfigError если конфигурация невалидна
+     * @param settings session settings {@link SessionSettings}
+     * @throws ConfigError if the configuration is invalid
      */
     public FixInitiator(SessionSettings settings) throws ConfigError {
         this.settings = settings;
         this.application = new FixApplication();
-
+        this.application.setConnectionType("initiator");
+    
         MessageStoreFactory storeFactory = new FileStoreFactory(settings);
         LogFactory logFactory = new FileLogFactory(settings);
         MessageFactory messageFactory = new DefaultMessageFactory();
@@ -61,18 +62,18 @@ public class FixInitiator {
     }
 
     /**
-     * Запускает Initiator — начинает подключение к Acceptor-серверу.
+     * Starts the Initiator — begins connecting to the Acceptor server.
      * <p>
-     * После вызова QuickFIX/J автоматически:
+     * After invocation, QuickFIX/J automatically:
      * <ol>
-     *   <li>Устанавливает TCP-соединение</li>
-     *   <li>Отправляет Logon (35=A)</li>
-     *   <li>Ожидает подтверждение Logon от сервера</li>
-     *   <li>Начинает обмен Heartbeat-сообщениями</li>
+     *   <li>Establishes a TCP connection</li>
+     *   <li>Sends Logon (35=A)</li>
+     *   <li>Waits for Logon confirmation from the server</li>
+     *   <li>Starts Heartbeat message exchange</li>
      * </ol>
      *
-     * @throws RuntimeError если не удалось запустить
-     * @throws ConfigError  если конфигурация невалидна
+     * @throws RuntimeError if the initiator failed to start
+     * @throws ConfigError  if the configuration is invalid
      */
     public void start() throws RuntimeError, ConfigError {
         System.out.println("\n[FIX Initiator] Starting...");
@@ -81,13 +82,13 @@ public class FixInitiator {
     }
 
     /**
-     * Останавливает Initiator — отправляет Logout и закрывает соединение.
+     * Stops the Initiator — sends Logout and closes the connection.
      * <p>
-     * QuickFIX/J автоматически:
+     * QuickFIX/J automatically:
      * <ol>
-     *   <li>Отправляет Logout (35=5)</li>
-     *   <li>Ожидает подтверждение Logout от сервера</li>
-     *   <li>Закрывает TCP-соединение</li>
+     *   <li>Sends Logout (35=5)</li>
+     *   <li>Waits for Logout confirmation from the server</li>
+     *   <li>Closes the TCP connection</li>
      * </ol>
      */
     public void stop() {
@@ -97,9 +98,9 @@ public class FixInitiator {
     }
 
     /**
-     * Инициирует Logout для конкретной сессии с указанием причины.
+     * Initiates Logout for a specific session with the given reason.
      *
-     * @param reason причина логаута (будет отправлена в поле Text (58))
+     * @param reason logout reason (will be sent in the Text (58) field)
      */
     public void logout(String reason) {
         Iterator<SessionID> it = initiator.getSessions().iterator();
@@ -112,9 +113,9 @@ public class FixInitiator {
     }
 
     /**
-     * Проверяет, залогинена ли хотя бы одна сессия.
+     * Checks whether at least one session is logged on.
      *
-     * @return {@code true} если есть активная залогиненная сессия
+     * @return {@code true} if there is an active logged-on session
      */
     public boolean isLoggedOn() {
         for (SessionID sessionId : initiator.getSessions()) {
@@ -126,27 +127,27 @@ public class FixInitiator {
     }
 
     /**
-     * Возвращает объект {@link FixApplication} для прямого доступа к callback-ам.
+     * Returns the {@link FixApplication} object for direct access to callbacks.
      */
     public FixApplication getApplication() {
         return application;
     }
 
     /**
-     * Возвращает настройки сессии.
+     * Returns the session settings.
      */
     public SessionSettings getSettings() {
         return settings;
     }
 
-    // ── Внутренние методы ───────────────────────────────────────────────
+    // ── Internal methods ────────────────────────────────────────────────
     
     /**
-     * Выводит информацию о сконфигурированных сессиях.
+     * Prints information about configured sessions.
      */
     private void printSessionInfo() {
         System.out.println("\n╔══════════════════════════════════════════════╗");
-        System.out.println("║       FIX 4.4 Initiator — Session Info       ║");
+        System.out.println("║       FIX Initiator — Session Info            ║");
         System.out.println("╠══════════════════════════════════════════════╣");
 
         for (SessionID sessionId : initiator.getSessions()) {

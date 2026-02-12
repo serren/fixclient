@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>QuickFIX Client</name>
-    <description>FIX 4.4 Initiator/Acceptor application using QuickFIX/J</description>
+    <description>FIX Initiator/Acceptor application using QuickFIX/J (supports FIX 4.0 — 5.0SP2)</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -28,10 +28,10 @@
             <version>${quickfixj.version}</version>
         </dependency>
 
-        <!-- QuickFIX/J FIX 4.4 Messages -->
+        <!-- QuickFIX/J FIX Messages — all supported versions -->
         <dependency>
             <groupId>org.quickfixj</groupId>
-            <artifactId>quickfixj-messages-fix44</artifactId>
+            <artifactId>quickfixj-all</artifactId>
             <version>${quickfixj.version}</version>
         </dependency>
 

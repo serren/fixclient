@@ -10,22 +10,25 @@ import java.io.InputStream;
 import java.util.Scanner;
 
 /**
- * Точка входа консольного FIX 4.4 приложения.
+ * Entry point of the console FIX application.
  * <p>
- * Поддерживает два режима работы:
+ * Supports all FIX protocol versions: 4.0, 4.1, 4.2, 4.3, 4.4, 5.0, 5.0SP1, 5.0SP2 (FIXT 1.1).
+ * The actual version is determined from the configuration file ({@code BeginString} field in the {@code [SESSION]} section).
+ * <p>
+ * Supports two operating modes:
  * <ul>
- *   <li><b>Initiator</b> — клиент, подключающийся к серверу (ConnectionType=initiator)</li>
- *   <li><b>Acceptor</b>  — сервер, принимающий входящие подключения (ConnectionType=acceptor)</li>
+ *   <li><b>Initiator</b> — client that connects to a server (ConnectionType=initiator)</li>
+ *   <li><b>Acceptor</b>  — server that accepts incoming connections (ConnectionType=acceptor)</li>
  * </ul>
  * <p>
- * Режим определяется автоматически по значению {@code ConnectionType} в .cfg файле.
+ * The mode is determined automatically by the {@code ConnectionType} value in the .cfg file.
  * <p>
- * Запуск: {@code java Starter <path-to-config.cfg>}
+ * Launch: {@code java Starter <path-to-config.cfg>}
  * <p>
- * Примеры:
+ * Examples:
  * <pre>
- *   java Starter initiator-session.cfg   — запуск в режиме Initiator
- *   java Starter acceptor-session.cfg    — запуск в режиме Acceptor
+ *   java Starter initiator-session.cfg   — start in Initiator mode
+ *   java Starter acceptor-session.cfg    — start in Acceptor mode
  * </pre>
  */
 public class Starter {
@@ -65,7 +68,7 @@ public class Starter {
     }
 
     /**
-     * Запускает приложение в режиме Initiator.
+     * Starts the application in Initiator mode.
      */
     private static void startInitiator(SessionSettings settings) throws Exception {
         FixInitiator fixInitiator = new FixInitiator(settings);
@@ -74,7 +77,7 @@ public class Starter {
     }
     
     /**
-     * Запускает приложение в режиме Acceptor.
+     * Starts the application in Acceptor mode.
      */
     private static void startAcceptor(SessionSettings settings) throws Exception {
         FixAcceptor fixAcceptor = new FixAcceptor(settings);
@@ -83,10 +86,10 @@ public class Starter {
     }
 
     /**
-     * Определяет тип подключения (initiator/acceptor) из загруженных настроек.
+     * Detects the connection type (initiator/acceptor) from the loaded settings.
      *
-     * @param settings   загруженные настройки сессии
-     * @return значение ConnectionType в нижнем регистре
+     * @param settings   loaded session settings
+     * @return ConnectionType value in lowercase
      */
     private static String detectConnectionType(SessionSettings settings) {
         return settings.getDefaultProperties()
@@ -96,10 +99,10 @@ public class Starter {
     }
 
     /**
-     * Проверяет, что путь к конфигурационному файлу передан и файл существует.
+     * Validates that the configuration file path is provided and the file exists.
      *
-     * @param args аргументы командной строки
-     * @return путь к .cfg файлу или {@code null}, если валидация не пройдена
+     * @param args command line arguments
+     * @return path to the .cfg file, or {@code null} if validation failed
      */
     private static String validateConfigPath(String[] args) {
         if (args.length == 0) {
@@ -144,17 +147,17 @@ public class Starter {
         return configPath;
     }
 
-    // ── Загрузка конфигурации ────────────────────────────────────────
+    // ── Configuration loading ────────────────────────────────────────
     
     /**
-     * Загружает {@link SessionSettings} из файла.
+     * Loads {@link SessionSettings} from a file.
      * <p>
-     * Сначала ищет файл в файловой системе, затем в classpath.
+     * First looks for the file in the filesystem, then in the classpath.
      *
-     * @param configFilePath путь к .cfg файлу
-     * @return загруженные настройки сессии
-     * @throws ConfigError           если конфигурация невалидна
-     * @throws FileNotFoundException если файл не найден
+     * @param configFilePath path to the .cfg file
+     * @return loaded session settings
+     * @throws ConfigError           if the configuration is invalid
+     * @throws FileNotFoundException if the file is not found
      */
     public static SessionSettings loadSettings(String configFilePath) throws ConfigError, FileNotFoundException {
         InputStream inputStream;
@@ -172,10 +175,10 @@ public class Starter {
         return new SessionSettings(inputStream);
     }
     
-    // ── Интерактивные циклы команд ──────────────────────────────────────
+    // ── Interactive command loops ──────────────────────────────────────
 
     /**
-     * Интерактивный цикл команд для Initiator-режима.
+     * Interactive command loop for Initiator mode.
      */
     private static void runInitiatorCommandLoop(FixInitiator fixInitiator) {
         System.out.println("\n╔══════════════════════════════════════════════╗");
@@ -218,7 +221,7 @@ public class Starter {
     }
 
     /**
-     * Интерактивный цикл команд для Acceptor-режима.
+     * Interactive command loop for Acceptor mode.
      */
     private static void runAcceptorCommandLoop(FixAcceptor fixAcceptor) {
         System.out.println("\n╔══════════════════════════════════════════════╗");
