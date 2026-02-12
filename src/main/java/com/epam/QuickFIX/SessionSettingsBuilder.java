@@ -1,16 +1,9 @@
 package com.epam.QuickFIX;
 
-import quickfix.SessionID;
 import quickfix.SessionSettings;
 
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Scanner;
 
 /**
