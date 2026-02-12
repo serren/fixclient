@@ -137,51 +137,6 @@ public class SessionSettingsBuilder {
         SESSION_PARAMS_ACCEPTOR.put(RESET_ON_DISCONNECT, commonSession.get(RESET_ON_DISCONNECT));
     }
 
-    // ── Публичный API ───────────────────────────────────────────────────
-
-    /**
-     * Запускает интерактивный диалог в консоли и возвращает
-     * сконфигурированный {@link SessionSettings}.
-     * <p>
-     * Сначала спрашивает тип подключения (initiator/acceptor),
-     * затем запрашивает соответствующие параметры.
-     *
-     * @param scanner сканер, привязанный к {@code System.in}
-     * @return готовый объект настроек для QuickFIX/J
-     */
-    public SessionSettings buildFromConsole(Scanner scanner) {
-        System.out.println("==============================================");
-        System.out.println("    FIX 4.4 — Session Configuration Builder   ");
-        System.out.println("==============================================");
-        System.out.println("Press ENTER to accept [default] value.\n");
-
-        // Определяем тип подключения
-        System.out.print("  Connection type (initiator/acceptor) [initiator]: ");
-        String typeInput = scanner.nextLine().trim().toLowerCase();
-        boolean isAcceptor = typeInput.equals("acceptor");
-
-        String connectionType = isAcceptor ? "acceptor" : "initiator";
-        System.out.println("  → Mode: " + connectionType.toUpperCase() + "\n");
-
-        Map<String, SettingParam> defaultParams = isAcceptor ? DEFAULT_PARAMS_ACCEPTOR : DEFAULT_PARAMS_INITIATOR;
-        Map<String, SettingParam> sessionParams = isAcceptor ? SESSION_PARAMS_ACCEPTOR : SESSION_PARAMS_INITIATOR;
-
-        // Собираем значения (ConnectionType уже определён)
-        Map<String, String> defaultValues = readSection(scanner, "DEFAULT", defaultParams, connectionType);
-        Map<String, String> sessionValues = readSection(scanner, "SESSION", sessionParams, null);
-
-        // Строим конфигурационную строку в формате QuickFIX/J .cfg
-        String cfg = buildConfigString(defaultValues, sessionValues);
-
-        System.out.println("\n--- Generated configuration ---");
-        System.out.println(cfg);
-        System.out.println("-------------------------------\n");
-
-        return parseSettings(cfg);
-    }
-
-    // ── Внутренние методы ───────────────────────────────────────────────
-
     /**
      * Считывает значения одной секции, показывая пользователю подсказки
      * и значения по умолчанию.
@@ -235,61 +190,6 @@ public class SessionSettingsBuilder {
                 sb.append(key).append("=").append(value).append("\n"));
 
         return sb.toString();
-    }
-
-    /**
-     * Сохраняет {@link SessionSettings} в .cfg файл в формате QuickFIX/J.
-     * <p>
-     * Автоматически определяет тип подключения и сохраняет соответствующие параметры.
-     *
-     * @param settings       объект настроек
-     * @param outputFilePath путь к выходному файлу
-     * @throws IOException если не удалось записать файл
-     */
-    public void saveToFile(SessionSettings settings, String outputFilePath) throws IOException {
-        Path path = Path.of(outputFilePath);
-        if (path.getParent() != null) {
-            Files.createDirectories(path.getParent());
-        }
-
-        String connectionType = settings.getDefaultProperties()
-                .getProperty(CONNECTION_TYPE, "initiator").trim().toLowerCase();
-        boolean isAcceptor = "acceptor".equals(connectionType);
-
-        Map<String, SettingParam> defaultParamKeys = isAcceptor ? DEFAULT_PARAMS_ACCEPTOR : DEFAULT_PARAMS_INITIATOR;
-        Map<String, SettingParam> sessionParamKeys = isAcceptor ? SESSION_PARAMS_ACCEPTOR : SESSION_PARAMS_INITIATOR;
-
-        try (PrintWriter writer = new PrintWriter(new FileWriter(outputFilePath))) {
-            // [DEFAULT] section
-            writer.println("[DEFAULT]");
-            Properties defaults = settings.getDefaultProperties();
-            for (String key : defaultParamKeys.keySet()) {
-                String value = defaults.getProperty(key);
-                if (value != null) {
-                    writer.println(key + "=" + value);
-                }
-            }
-            writer.println();
-
-            // [SESSION] sections
-            java.util.Iterator<SessionID> it = settings.sectionIterator();
-            while (it.hasNext()) {
-                SessionID sessionId = it.next();
-                writer.println("[SESSION]");
-                try {
-                    Properties sessionProps = settings.getSessionProperties(sessionId, false);
-                    for (String key : sessionParamKeys.keySet()) {
-                        String value = sessionProps.getProperty(key);
-                        if (value != null) {
-                            writer.println(key + "=" + value);
-                        }
-                    }
-                } catch (quickfix.ConfigError e) {
-                    throw new IOException("Failed to read session properties: " + e.getMessage(), e);
-                }
-                writer.println();
-            }
-        }
     }
 
     /**

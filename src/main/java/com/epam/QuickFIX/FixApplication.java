@@ -9,11 +9,8 @@ import quickfix.Message;
 import quickfix.RejectLogon;
 import quickfix.Session;
 import quickfix.SessionID;
-import quickfix.SessionNotFound;
 import quickfix.UnsupportedMessageType;
 import quickfix.field.MsgType;
-import quickfix.field.SenderCompID;
-import quickfix.field.TargetCompID;
 import quickfix.field.Text;
 
 import java.time.LocalDateTime;
@@ -150,8 +147,7 @@ public class FixApplication implements Application {
      * @throws RejectLogon         если нужно отклонить логон контрагента
      */
     @Override
-    public void fromAdmin(Message message, SessionID sessionId)
-            throws FieldNotFound, IncorrectDataFormat, IncorrectTagValue, RejectLogon {
+    public void fromAdmin(Message message, SessionID sessionId) {
         try {
             String msgType = message.getHeader().getString(MsgType.FIELD);
 
