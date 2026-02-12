@@ -1,5 +1,8 @@
 package com.epam.quickfix;
 
+import com.epam.quickfix.application.FixAcceptor;
+import com.epam.quickfix.application.FixInitiator;
+import com.epam.quickfix.service.OrderService;
 import quickfix.ConfigError;
 import quickfix.SessionID;
 import quickfix.SessionSettings;

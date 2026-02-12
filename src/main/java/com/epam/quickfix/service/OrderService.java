@@ -1,5 +1,6 @@
-package com.epam.quickfix;
+package com.epam.quickfix.service;
 
+import com.epam.quickfix.latency.LatencyTracker;
 import quickfix.Session;
 import quickfix.SessionID;
 import quickfix.SessionNotFound;

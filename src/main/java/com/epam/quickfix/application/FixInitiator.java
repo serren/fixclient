@@ -1,5 +1,7 @@
-package com.epam.quickfix;
+package com.epam.quickfix.application;
 
+import com.epam.quickfix.latency.LatencyTracker;
+import com.epam.quickfix.service.OrderService;
 import quickfix.ConfigError;
 import quickfix.DefaultMessageFactory;
 import quickfix.FileLogFactory;

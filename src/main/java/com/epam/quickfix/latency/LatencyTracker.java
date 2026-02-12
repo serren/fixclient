@@ -1,4 +1,4 @@
-package com.epam.quickfix;
+package com.epam.quickfix.latency;
 
 import java.util.ArrayList;
 import java.util.DoubleSummaryStatistics;

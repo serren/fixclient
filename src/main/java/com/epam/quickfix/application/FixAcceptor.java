@@ -1,4 +1,4 @@
-package com.epam.quickfix;
+package com.epam.quickfix.application;
 
 import quickfix.ConfigError;
 import quickfix.DefaultMessageFactory;

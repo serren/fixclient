@@ -1,5 +1,7 @@
-package com.epam.quickfix;
+package com.epam.quickfix.application;
 
+import com.epam.quickfix.Starter;
+import com.epam.quickfix.latency.LatencyTracker;
 import quickfix.Application;
 import quickfix.DoNotSend;
 import quickfix.FieldNotFound;
