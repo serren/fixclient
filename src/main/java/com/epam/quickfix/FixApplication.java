@@ -1,4 +1,4 @@
-package com.epam.QuickFIX;
+package com.epam.quickfix;
 
 import quickfix.Application;
 import quickfix.DoNotSend;
