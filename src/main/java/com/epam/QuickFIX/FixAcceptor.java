@@ -117,20 +117,6 @@ public class FixAcceptor {
     }
 
     /**
-     * Проверяет, залогинена ли хотя бы одна сессия.
-     *
-     * @return {@code true} если есть активная залогиненная сессия
-     */
-    public boolean isLoggedOn() {
-        for (SessionID sessionId : acceptor.getSessions()) {
-            if (application.isLoggedOn(sessionId)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * Возвращает количество активных (залогиненных) сессий.
      *
      * @return количество залогиненных сессий
