@@ -33,8 +33,8 @@ import java.util.Scanner;
  */
 public class Starter {
 
-    private static final String CONNECTION_TYPE_INITIATOR = "initiator";
-    private static final String CONNECTION_TYPE_ACCEPTOR = "acceptor";
+    public static final String CONNECTION_TYPE_INITIATOR = "initiator";
+    public static final String CONNECTION_TYPE_ACCEPTOR = "acceptor";
 
     public static void main(String[] args) {
         try {
@@ -209,9 +209,7 @@ public class Starter {
                         System.out.println("Goodbye!");
                         return;
                     }
-                    case "help" -> {
-                        System.out.println("Commands: status, logout, quit, help");
-                    }
+                    case "help" -> System.out.println("Commands: status, logout, quit, help");
                     case "" -> { /* ignore empty input */ }
                     default ->
                             System.out.println("Unknown command: '" + command + "'. Type 'help' for available commands.");
@@ -244,9 +242,7 @@ public class Starter {
                         System.out.println("Sessions: " + loggedOn + "/" + total + " logged on"
                                 + (loggedOn > 0 ? " ✓" : " ✗"));
                     }
-                    case "clients" -> {
-                        fixAcceptor.printConnectedClients();
-                    }
+                    case "clients" -> fixAcceptor.printConnectedClients();
                     case "logout" -> {
                         System.out.print("Logout reason (optional, press ENTER to skip): ");
                         String reason = scanner.nextLine().trim();
@@ -258,9 +254,7 @@ public class Starter {
                         System.out.println("Goodbye!");
                         return;
                     }
-                    case "help" -> {
-                        System.out.println("Commands: status, clients, logout, quit, help");
-                    }
+                    case "help" -> System.out.println("Commands: status, clients, logout, quit, help");
                     case "" -> { /* ignore empty input */ }
                     default ->
                             System.out.println("Unknown command: '" + command + "'. Type 'help' for available commands.");

@@ -84,7 +84,7 @@ public class FixApplication implements Application {
      * @return {@code true} if the application is running in Acceptor mode
      */
     private boolean isAcceptorMode() {
-        return "acceptor".equals(connectionType);
+        return Starter.CONNECTION_TYPE_ACCEPTOR.equals(connectionType);
     }
 
     /**
