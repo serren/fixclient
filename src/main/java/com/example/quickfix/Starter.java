@@ -1,8 +1,9 @@
-package com.epam.quickfix;
+package com.example.quickfix;
 
-import com.epam.quickfix.application.FixAcceptor;
-import com.epam.quickfix.application.FixInitiator;
-import com.epam.quickfix.service.OrderService;
+import com.example.quickfix.application.FixAcceptor;
+import com.example.quickfix.application.FixInitiator;
+import com.example.quickfix.service.OrderGeneratorService;
+import com.example.quickfix.service.OrderService;
 import quickfix.ConfigError;
 import quickfix.SessionID;
 import quickfix.SessionSettings;
@@ -186,16 +187,22 @@ public class Starter {
      * Interactive command loop for Initiator mode.
      */
     private static void runInitiatorCommandLoop(FixInitiator fixInitiator) {
-        System.out.println("\n╔══════════════════════════════════════════════╗");
-        System.out.println("║     FIX Initiator — Available commands:      ║");
-        System.out.println("║  order   — send a NewOrderSingle             ║");
-        System.out.println("║  batch   — send a batch of orders            ║");
-        System.out.println("║  stats   — show round-trip latency stats     ║");
-        System.out.println("║  reset   — reset latency statistics          ║");
-        System.out.println("║  status  — check session status              ║");
-        System.out.println("║  logout  — send Logout and disconnect        ║");
-        System.out.println("║  quit    — stop initiator and exit           ║");
-        System.out.println("╚══════════════════════════════════════════════╝");
+        System.out.println("\n╔══════════════════════════════════════════════════╗");
+        System.out.println("║     FIX Initiator — Available commands:          ║");
+        System.out.println("║  order    — send a NewOrderSingle                ║");
+        System.out.println("║  cancel   — send an OrderCancelRequest           ║");
+        System.out.println("║  replace  — send an OrderCancelReplaceRequest    ║");
+        System.out.println("║  orders   — list active (cancellable) orders     ║");
+        System.out.println("║  batch    — send a batch of orders               ║");
+        System.out.println("║  generate — start automated order generation     ║");
+        System.out.println("║  genstop  — stop order generation                ║");
+        System.out.println("║  genconf  — show generator configuration         ║");
+        System.out.println("║  stats    — show round-trip latency stats        ║");
+        System.out.println("║  reset    — reset latency statistics             ║");
+        System.out.println("║  status   — check session status                 ║");
+        System.out.println("║  logout   — send Logout and disconnect           ║");
+        System.out.println("║  quit     — stop initiator and exit              ║");
+        System.out.println("╚══════════════════════════════════════════════════╝");
 
         try (Scanner scanner = new Scanner(System.in)) {
             while (true) {
@@ -204,7 +211,13 @@ public class Starter {
 
                 switch (command) {
                     case "order" -> handleOrderCommand(scanner, fixInitiator);
+                    case "cancel" -> handleCancelCommand(scanner, fixInitiator);
+                    case "replace" -> handleReplaceCommand(scanner, fixInitiator);
+                    case "orders" -> handleListOrdersCommand(fixInitiator);
                     case "batch" -> handleBatchCommand(scanner, fixInitiator);
+                    case "generate" -> handleGenerateCommand(scanner, fixInitiator);
+                    case "genstop" -> handleGenStopCommand(fixInitiator);
+                    case "genconf" -> handleGenConfCommand(scanner, fixInitiator);
                     case "stats" -> fixInitiator.getLatencyTracker().printStatistics();
                     case "reset" -> fixInitiator.getLatencyTracker().reset();
                     case "status" -> {
@@ -222,7 +235,7 @@ public class Starter {
                         System.out.println("Goodbye!");
                         return;
                     }
-                    case "help" -> System.out.println("Commands: order, batch, stats, reset, status, logout, quit, help");
+                    case "help" -> System.out.println("Commands: order, cancel, replace, orders, batch, generate, genstop, genconf, stats, reset, status, logout, quit, help");
                     case "" -> { /* ignore empty input */ }
                     default ->
                             System.out.println("Unknown command: '" + command + "'. Type 'help' for available commands.");
@@ -235,10 +248,11 @@ public class Starter {
      * Interactive command loop for Acceptor mode.
      */
     private static void runAcceptorCommandLoop(FixAcceptor fixAcceptor) {
-        System.out.println("\n╔══════════════════════════════════════════════╗");
+        System.out.println("\n");
+        System.out.println("╔══════════════════════════════════════════════╗");
         System.out.println("║      FIX Acceptor — Available commands:      ║");
         System.out.println("║  status  — check session status & clients    ║");
-        System.out.println("║  clients — show connected clients           ║");
+        System.out.println("║  clients — show connected clients            ║");
         System.out.println("║  logout  — send Logout to connected client   ║");
         System.out.println("║  quit    — stop acceptor and exit            ║");
         System.out.println("╚══════════════════════════════════════════════╝");
@@ -277,7 +291,129 @@ public class Starter {
     }
 
     // ── Order command handlers ──────────────────────────────────────────
-
+    
+    /**
+     * Handles the interactive "replace" command.
+     * Prompts the user for the ClOrdID of the order to replace and the new parameters.
+     *
+     * @param scanner      console input scanner
+     * @param fixInitiator the FIX initiator instance
+     */
+    private static void handleReplaceCommand(Scanner scanner, FixInitiator fixInitiator) {
+        if (!fixInitiator.isLoggedOn()) {
+            System.out.println("[ERROR] Cannot send replace — session is not logged on.");
+            return;
+        }
+    
+        SessionID sessionId = fixInitiator.getSessionId();
+        if (sessionId == null) {
+            System.out.println("[ERROR] No session available.");
+            return;
+        }
+    
+        var activeOrders = fixInitiator.getOrderService().getActiveOrders();
+        if (activeOrders.isEmpty()) {
+            System.out.println("[INFO] No active orders to replace.");
+            return;
+        }
+    
+        System.out.println("\n  Active orders:");
+        activeOrders.forEach((id, details) ->
+                System.out.printf("    %s — %s%n", id, details));
+    
+        System.out.print("  ClOrdID to replace: ");
+        String origClOrdId = scanner.nextLine().trim();
+        if (origClOrdId.isEmpty()) {
+            System.out.println("[ERROR] ClOrdID cannot be empty.");
+            return;
+        }
+    
+        var details = activeOrders.get(origClOrdId);
+        if (details == null) {
+            System.out.println("[ERROR] Order not found: " + origClOrdId);
+            return;
+        }
+    
+        try {
+            System.out.printf("  New Quantity [%.0f] (press ENTER to keep): ", details.getQuantity());
+            String qtyStr = scanner.nextLine().trim();
+            double newQuantity = qtyStr.isEmpty() ? 0 : Double.parseDouble(qtyStr);
+    
+            double newPrice = 0;
+            if (details.getOrdType() == quickfix.field.OrdType.LIMIT) {
+                System.out.printf("  New Price [%.2f] (press ENTER to keep): ", details.getPrice());
+                String priceStr = scanner.nextLine().trim();
+                newPrice = priceStr.isEmpty() ? 0 : Double.parseDouble(priceStr);
+            }
+    
+            if (newQuantity == 0 && newPrice == 0) {
+                System.out.println("[INFO] No changes specified — replace not sent.");
+                return;
+            }
+    
+            fixInitiator.getOrderService().sendCancelReplaceOrder(sessionId, origClOrdId, newQuantity, newPrice);
+        } catch (NumberFormatException e) {
+            System.out.println("[ERROR] Invalid number format: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Handles the interactive "cancel" command.
+     * Prompts the user for the ClOrdID of the order to cancel and sends an OrderCancelRequest.
+     *
+     * @param scanner      console input scanner
+     * @param fixInitiator the FIX initiator instance
+     */
+    private static void handleCancelCommand(Scanner scanner, FixInitiator fixInitiator) {
+        if (!fixInitiator.isLoggedOn()) {
+            System.out.println("[ERROR] Cannot send cancel — session is not logged on.");
+            return;
+        }
+    
+        SessionID sessionId = fixInitiator.getSessionId();
+        if (sessionId == null) {
+            System.out.println("[ERROR] No session available.");
+            return;
+        }
+    
+        var activeOrders = fixInitiator.getOrderService().getActiveOrders();
+        if (activeOrders.isEmpty()) {
+            System.out.println("[INFO] No active orders to cancel.");
+            return;
+        }
+    
+        System.out.println("\n  Active orders:");
+        activeOrders.forEach((id, details) ->
+                System.out.printf("    %s — %s%n", id, details));
+    
+        System.out.print("  ClOrdID to cancel: ");
+        String origClOrdId = scanner.nextLine().trim();
+        if (origClOrdId.isEmpty()) {
+            System.out.println("[ERROR] ClOrdID cannot be empty.");
+            return;
+        }
+    
+        fixInitiator.getOrderService().sendCancelOrder(sessionId, origClOrdId);
+    }
+    
+    /**
+     * Handles the interactive "orders" command.
+     * Displays all active (cancellable) orders.
+     *
+     * @param fixInitiator the FIX initiator instance
+     */
+    private static void handleListOrdersCommand(FixInitiator fixInitiator) {
+        var activeOrders = fixInitiator.getOrderService().getActiveOrders();
+        if (activeOrders.isEmpty()) {
+            System.out.println("\n[INFO] No active orders.");
+            return;
+        }
+    
+        System.out.println("\n  Active orders (" + activeOrders.size() + "):");
+        activeOrders.forEach((id, details) ->
+                System.out.printf("    %s — %s%n", id, details));
+    }
+    
     /**
      * Handles the interactive "order" command.
      * Prompts the user for order parameters and sends a NewOrderSingle.
@@ -387,6 +523,99 @@ public class Starter {
 
         } catch (NumberFormatException e) {
             System.out.println("[ERROR] Invalid number format: " + e.getMessage());
+        }
+    }
+
+    // ── Order generator command handlers ─────────────────────────────────
+
+    /**
+     * Handles the interactive "generate" command.
+     * Loads configuration from properties file and starts automated order generation.
+     *
+     * @param scanner      console input scanner
+     * @param fixInitiator the FIX initiator instance
+     */
+    private static void handleGenerateCommand(Scanner scanner, FixInitiator fixInitiator) {
+        if (!fixInitiator.isLoggedOn()) {
+            System.out.println("[ERROR] Cannot start generator — session is not logged on.");
+            return;
+        }
+
+        SessionID sessionId = fixInitiator.getSessionId();
+        if (sessionId == null) {
+            System.out.println("[ERROR] No session available.");
+            return;
+        }
+
+        OrderGeneratorService generator = fixInitiator.getOrderGeneratorService();
+
+        if (generator.isRunning()) {
+            System.out.println("[ERROR] Order generator is already running. Use 'genstop' to stop it first.");
+            return;
+        }
+
+        System.out.print("  Properties file [order-generator.properties]: ");
+        String propsPath = scanner.nextLine().trim();
+        if (propsPath.isEmpty()) {
+            propsPath = "order-generator.properties";
+        }
+
+        try {
+            generator.loadConfig(propsPath);
+            generator.printConfig();
+
+            System.out.print("  Start generation? (y/n) [y]: ");
+            String confirm = scanner.nextLine().trim().toLowerCase();
+            if (confirm.isEmpty() || confirm.equals("y") || confirm.equals("yes")) {
+                generator.start(sessionId);
+            } else {
+                System.out.println("[INFO] Generation cancelled.");
+            }
+        } catch (Exception e) {
+            System.out.println("[ERROR] Failed to start generator: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handles the interactive "genstop" command.
+     * Stops the currently running order generator.
+     *
+     * @param fixInitiator the FIX initiator instance
+     */
+    private static void handleGenStopCommand(FixInitiator fixInitiator) {
+        OrderGeneratorService generator = fixInitiator.getOrderGeneratorService();
+
+        if (!generator.isRunning()) {
+            System.out.println("[INFO] Order generator is not running.");
+            return;
+        }
+
+        generator.stop();
+        System.out.printf("[INFO] Generator stopped. Sent: %d, Failed: %d%n",
+                generator.getTotalSent(), generator.getTotalFailed());
+    }
+
+    /**
+     * Handles the interactive "genconf" command.
+     * Loads and displays the generator configuration from a properties file.
+     *
+     * @param scanner      console input scanner
+     * @param fixInitiator the FIX initiator instance
+     */
+    private static void handleGenConfCommand(Scanner scanner, FixInitiator fixInitiator) {
+        OrderGeneratorService generator = fixInitiator.getOrderGeneratorService();
+
+        System.out.print("  Properties file [order-generator.properties]: ");
+        String propsPath = scanner.nextLine().trim();
+        if (propsPath.isEmpty()) {
+            propsPath = "order-generator.properties";
+        }
+
+        try {
+            generator.loadConfig(propsPath);
+            generator.printConfig();
+        } catch (Exception e) {
+            System.out.println("[ERROR] Failed to load config: " + e.getMessage());
         }
     }
 }

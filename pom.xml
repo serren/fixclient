@@ -4,13 +4,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.epam</groupId>
+    <groupId>com.example</groupId>
     <artifactId>quickfix-client</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>QuickFIX Client</name>
-    <description>FIX Initiator/Acceptor application using QuickFIX/J (supports FIX 4.0 — 5.0SP2)</description>
+    <description>FIX Initiator/Acceptor application using QuickFIX/J (supports FIX 4.4)</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -31,7 +31,7 @@
         <!-- QuickFIX/J FIX Messages — all supported versions -->
         <dependency>
             <groupId>org.quickfixj</groupId>
-            <artifactId>quickfixj-all</artifactId>
+            <artifactId>quickfixj-messages-fix44</artifactId>
             <version>${quickfixj.version}</version>
         </dependency>
 

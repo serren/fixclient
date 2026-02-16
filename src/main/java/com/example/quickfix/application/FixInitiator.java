@@ -1,7 +1,8 @@
-package com.epam.quickfix.application;
+package com.example.quickfix.application;
 
-import com.epam.quickfix.latency.LatencyTracker;
-import com.epam.quickfix.service.OrderService;
+import com.example.quickfix.latency.LatencyTracker;
+import com.example.quickfix.service.OrderGeneratorService;
+import com.example.quickfix.service.OrderService;
 import quickfix.ConfigError;
 import quickfix.DefaultMessageFactory;
 import quickfix.FileLogFactory;
@@ -38,6 +39,7 @@ public class FixInitiator {
     private final SessionSettings settings;
     private final LatencyTracker latencyTracker;
     private final OrderService orderService;
+    private final OrderGeneratorService orderGeneratorService;
 
     /**
      * Creates a FIX Initiator based on the provided session settings.
@@ -49,9 +51,11 @@ public class FixInitiator {
         this.settings = settings;
         this.latencyTracker = new LatencyTracker();
         this.orderService = new OrderService(latencyTracker);
+        this.orderGeneratorService = new OrderGeneratorService(orderService);
         this.application = new FixApplication();
         this.application.setConnectionType("initiator");
         this.application.setLatencyTracker(latencyTracker);
+        this.application.setOrderService(orderService);
     
         MessageStoreFactory storeFactory = new FileStoreFactory(settings);
         LogFactory logFactory = new FileLogFactory(settings);
@@ -100,6 +104,9 @@ public class FixInitiator {
      */
     public void stop() {
         System.out.println("\n[FIX Initiator] Stopping...");
+        if (orderGeneratorService.isRunning()) {
+            orderGeneratorService.stop();
+        }
         initiator.stop();
         System.out.println("[FIX Initiator] Stopped.");
     }
@@ -141,6 +148,13 @@ public class FixInitiator {
     }
     
     /**
+     * Returns the {@link OrderGeneratorService} for automated order generation.
+     */
+    public OrderGeneratorService getOrderGeneratorService() {
+        return orderGeneratorService;
+    }
+    
+    /**
      * Returns the {@link LatencyTracker} for viewing latency statistics.
      */
     public LatencyTracker getLatencyTracker() {
@@ -175,8 +189,9 @@ public class FixInitiator {
      * Prints information about configured sessions.
      */
     private void printSessionInfo() {
-        System.out.println("\n╔══════════════════════════════════════════════╗");
-        System.out.println("║       FIX Initiator — Session Info            ║");
+        System.out.println("\n");
+        System.out.println("╔══════════════════════════════════════════════╗");
+        System.out.println("║       FIX Initiator — Session Info           ║");
         System.out.println("╠══════════════════════════════════════════════╣");
 
         for (SessionID sessionId : initiator.getSessions()) {

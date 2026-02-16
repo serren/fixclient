@@ -1,5 +1,6 @@
-package com.epam.quickfix.application;
+package com.example.quickfix.application;
 
+import com.example.quickfix.service.ExecutionReportService;
 import quickfix.ConfigError;
 import quickfix.DefaultMessageFactory;
 import quickfix.FileLogFactory;
@@ -37,6 +38,7 @@ public class FixAcceptor {
     private final SocketAcceptor acceptor;
     private final FixApplication application;
     private final SessionSettings settings;
+    private final ExecutionReportService executionReportService;
 
     /**
      * Creates a FIX Acceptor based on the provided session settings.
@@ -46,8 +48,10 @@ public class FixAcceptor {
      */
     public FixAcceptor(SessionSettings settings) throws ConfigError {
         this.settings = settings;
+        this.executionReportService = new ExecutionReportService();
         this.application = new FixApplication();
         this.application.setConnectionType("acceptor");
+        this.application.setExecutionReportService(executionReportService);
     
         MessageStoreFactory storeFactory = new FileStoreFactory(settings);
         LogFactory logFactory = new FileLogFactory(settings);
@@ -98,6 +102,7 @@ public class FixAcceptor {
      */
     public void stop() {
         System.out.println("\n[FIX Acceptor] Stopping...");
+        executionReportService.shutdown();
         acceptor.stop();
         System.out.println("[FIX Acceptor] Stopped.");
     }
@@ -201,8 +206,9 @@ public class FixAcceptor {
      * Prints information about configured sessions.
      */
     private void printSessionInfo() {
-        System.out.println("\n╔══════════════════════════════════════════════╗");
-        System.out.println("║        FIX Acceptor — Session Info            ║");
+        System.out.println("\n");
+        System.out.println("╔══════════════════════════════════════════════╗");
+        System.out.println("║        FIX Acceptor — Session Info           ║");
         System.out.println("╠══════════════════════════════════════════════╣");
 
         for (SessionID sessionId : acceptor.getSessions()) {

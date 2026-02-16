@@ -1,7 +1,9 @@
-package com.epam.quickfix.application;
+package com.example.quickfix.application;
 
-import com.epam.quickfix.Starter;
-import com.epam.quickfix.latency.LatencyTracker;
+import com.example.quickfix.latency.LatencyTracker;
+import com.example.quickfix.service.ExecutionReportService;
+import com.example.quickfix.service.OrderService;
+import com.example.quickfix.Starter;
 import quickfix.Application;
 import quickfix.DoNotSend;
 import quickfix.FieldNotFound;
@@ -15,12 +17,17 @@ import quickfix.UnsupportedMessageType;
 import quickfix.field.AvgPx;
 import quickfix.field.ClOrdID;
 import quickfix.field.CumQty;
+import quickfix.field.CxlRejReason;
+import quickfix.field.CxlRejResponseTo;
 import quickfix.field.ExecID;
 import quickfix.field.ExecType;
 import quickfix.field.LeavesQty;
 import quickfix.field.MsgType;
 import quickfix.field.OrdStatus;
 import quickfix.field.OrderID;
+import quickfix.field.OrderQty;
+import quickfix.field.OrigClOrdID;
+import quickfix.field.Price;
 import quickfix.field.Symbol;
 import quickfix.field.Text;
 
@@ -53,6 +60,12 @@ public class FixApplication implements Application {
     
     /** Latency tracker for measuring order round-trip times. Set externally. */
     private LatencyTracker latencyTracker;
+    
+    /** Order service for managing active orders. Set externally. */
+    private OrderService orderService;
+    
+    /** Execution report service for simulating venue responses (Acceptor mode only). Set externally. */
+    private ExecutionReportService executionReportService;
 
     /**
      * Sets the connection type for correct operating mode detection.
@@ -70,6 +83,25 @@ public class FixApplication implements Application {
      */
     public void setLatencyTracker(LatencyTracker latencyTracker) {
         this.latencyTracker = latencyTracker;
+    }
+    
+    /**
+     * Sets the order service for managing active orders (used for cancel tracking).
+     *
+     * @param orderService order service instance
+     */
+    public void setOrderService(OrderService orderService) {
+        this.orderService = orderService;
+    }
+    
+    /**
+     * Sets the execution report service for generating simulated venue responses.
+     * Should only be set in Acceptor mode.
+     *
+     * @param executionReportService execution report service instance
+     */
+    public void setExecutionReportService(ExecutionReportService executionReportService) {
+        this.executionReportService = executionReportService;
     }
 
     // ── Lifecycle callbacks ─────────────────────────────────────────────
@@ -244,10 +276,21 @@ public class FixApplication implements Application {
             throws FieldNotFound, IncorrectDataFormat, IncorrectTagValue, UnsupportedMessageType {
         String msgType = message.getHeader().getString(MsgType.FIELD);
     
-        if (MsgType.EXECUTION_REPORT.equals(msgType)) {
-            handleExecutionReport(message, sessionId);
+        if (isAcceptorMode()) {
+            // Acceptor side: handle incoming orders and generate simulated ExecutionReports
+            switch (msgType) {
+                case MsgType.ORDER_SINGLE -> handleIncomingNewOrder(message, sessionId);
+                case MsgType.ORDER_CANCEL_REQUEST -> handleIncomingCancelRequest(message, sessionId);
+                case MsgType.ORDER_CANCEL_REPLACE_REQUEST -> handleIncomingReplaceRequest(message, sessionId);
+                default -> log("APP IN", sessionId, "Received: " + message.toRawString().replace('\001', '|'));
+            }
         } else {
-            log("APP IN", sessionId, "Received: " + message.toRawString().replace('\001', '|'));
+            // Initiator side: handle incoming execution reports
+            switch (msgType) {
+                case MsgType.EXECUTION_REPORT -> handleExecutionReport(message, sessionId);
+                case MsgType.ORDER_CANCEL_REJECT -> handleOrderCancelReject(message, sessionId);
+                default -> log("APP IN", sessionId, "Received: " + message.toRawString().replace('\001', '|'));
+            }
         }
     }
     
@@ -273,13 +316,28 @@ public class FixApplication implements Application {
             String execTypeStr = describeExecType(execType);
             String ordStatusStr = describeOrdStatus(ordStatus);
     
-            // Measure round-trip latency
+            // Measure round-trip latency for ExecType=NEW, CANCELED, and REPLACED
             String latencyInfo = "";
-            if (latencyTracker != null) {
+            if (latencyTracker != null
+                    && (execType == ExecType.NEW || execType == ExecType.CANCELED || execType == ExecType.REPLACED)) {
                 double latencyMs = latencyTracker.recordReceiveTime(clOrdId);
                 if (latencyMs >= 0) {
                     latencyInfo = String.format(" | RTT=%.3f ms", latencyMs);
                 }
+            }
+            
+            // Remove order from active orders when it is canceled or fully filled
+            if (orderService != null
+                    && (execType == ExecType.CANCELED || execType == ExecType.FILL)) {
+                orderService.removeActiveOrder(clOrdId);
+            }
+            
+            // Update active order after a successful replace
+            if (orderService != null && execType == ExecType.REPLACED) {
+                String origClOrdId = getFieldSafe(message, OrigClOrdID.FIELD);
+                double replacedQty = getDoubleSafe(message, OrderQty.FIELD);
+                double replacedPrice = getDoubleSafe(message, Price.FIELD);
+                orderService.updateActiveOrder(origClOrdId, clOrdId, replacedQty, replacedPrice);
             }
     
             log("EXEC REPORT", sessionId,
@@ -296,6 +354,71 @@ public class FixApplication implements Application {
     }
     
     /**
+     * Handles an incoming OrderCancelReject (35=9).
+     * This message is sent by the counterparty when an OrderCancelRequest is rejected.
+     *
+     * @param message   the OrderCancelReject message
+     * @param sessionId session identifier
+     */
+    private void handleOrderCancelReject(Message message, SessionID sessionId) {
+        try {
+            String clOrdId = message.getString(ClOrdID.FIELD);
+            String origClOrdId = getFieldSafe(message, OrigClOrdID.FIELD);
+            String orderId = getFieldSafe(message, OrderID.FIELD);
+            char ordStatus = message.getChar(OrdStatus.FIELD);
+            String ordStatusStr = describeOrdStatus(ordStatus);
+    
+            String cxlRejReason = "N/A";
+            if (message.isSetField(CxlRejReason.FIELD)) {
+                cxlRejReason = describeCxlRejReason(message.getInt(CxlRejReason.FIELD));
+            }
+    
+            String cxlRejResponseTo = "N/A";
+            if (message.isSetField(CxlRejResponseTo.FIELD)) {
+                cxlRejResponseTo = describeCxlRejResponseTo(message.getChar(CxlRejResponseTo.FIELD));
+            }
+    
+            String text = extractText(message);
+    
+            log("CANCEL REJECT", sessionId,
+                    String.format("ClOrdID=%s, OrigClOrdID=%s, OrderID=%s, OrdStatus=%s, "
+                                    + "CxlRejReason=%s, ResponseTo=%s%s",
+                            clOrdId, origClOrdId, orderId, ordStatusStr,
+                            cxlRejReason, cxlRejResponseTo,
+                            text.isEmpty() ? "" : ", Text=" + text));
+    
+        } catch (FieldNotFound e) {
+            log("CANCEL REJECT", sessionId,
+                    "OrderCancelReject received (parse error: " + e.getMessage() + "): "
+                            + message.toRawString().replace('\001', '|'));
+        }
+    }
+    
+    /**
+     * Returns a human-readable description of the CxlRejReason (102) field.
+     */
+    private String describeCxlRejReason(int reason) {
+        return switch (reason) {
+            case CxlRejReason.TOO_LATE_TO_CANCEL -> "TOO_LATE_TO_CANCEL";
+            case CxlRejReason.UNKNOWN_ORDER -> "UNKNOWN_ORDER";
+            case 2 -> "BROKER_OPTION";
+            case 3 -> "ALREADY_PENDING";
+            default -> "OTHER(" + reason + ")";
+        };
+    }
+    
+    /**
+     * Returns a human-readable description of the CxlRejResponseTo (434) field.
+     */
+    private String describeCxlRejResponseTo(char responseTo) {
+        return switch (responseTo) {
+            case CxlRejResponseTo.ORDER_CANCEL_REQUEST -> "ORDER_CANCEL_REQUEST";
+            case CxlRejResponseTo.ORDER_CANCEL_REPLACE_REQUEST -> "ORDER_CANCEL_REPLACE_REQUEST";
+            default -> "UNKNOWN(" + responseTo + ")";
+        };
+    }
+    
+    /**
      * Safely extracts a string field from a message. Returns "N/A" if the field is missing.
      */
     private String getFieldSafe(Message message, int field) {
@@ -303,6 +426,17 @@ public class FixApplication implements Application {
             return message.getString(field);
         } catch (FieldNotFound e) {
             return "N/A";
+        }
+    }
+    
+    /**
+     * Safely extracts a double field from a message. Returns 0 if the field is missing.
+     */
+    private double getDoubleSafe(Message message, int field) {
+        try {
+            return message.getDouble(field);
+        } catch (FieldNotFound e) {
+            return 0;
         }
     }
     
@@ -344,6 +478,94 @@ public class FixApplication implements Application {
         };
     }
 
+    // ── Acceptor-side incoming message handlers ──────────────────────────
+    
+    /**
+     * Handles an incoming NewOrderSingle (35=D) on the Acceptor side.
+     * Logs the order and delegates to {@link ExecutionReportService} for response generation.
+     *
+     * @param message   the incoming NewOrderSingle message
+     * @param sessionId session identifier
+     */
+    private void handleIncomingNewOrder(Message message, SessionID sessionId) {
+        try {
+            String clOrdId = message.getString(ClOrdID.FIELD);
+            String symbol = getFieldSafe(message, Symbol.FIELD);
+            char side = message.getChar(quickfix.field.Side.FIELD);
+            String qty = getFieldSafe(message, OrderQty.FIELD);
+            char ordType = message.getChar(quickfix.field.OrdType.FIELD);
+            String price = ordType == quickfix.field.OrdType.LIMIT
+                    ? getFieldSafe(message, Price.FIELD) : "MARKET";
+    
+            log("NEW ORDER IN", sessionId,
+                    String.format("ClOrdID=%s, Symbol=%s, Side=%s, Qty=%s, Type=%s, Price=%s",
+                            clOrdId, symbol,
+                            side == quickfix.field.Side.BUY ? "BUY" : "SELL",
+                            qty,
+                            ordType == quickfix.field.OrdType.LIMIT ? "LIMIT" : "MARKET",
+                            price));
+        } catch (FieldNotFound e) {
+            log("NEW ORDER IN", sessionId,
+                    "NewOrderSingle received (parse error): " + message.toRawString().replace('\001', '|'));
+        }
+    
+        if (executionReportService != null) {
+            executionReportService.handleNewOrderSingle(message, sessionId);
+        }
+    }
+    
+    /**
+     * Handles an incoming OrderCancelRequest (35=F) on the Acceptor side.
+     * Logs the request and delegates to {@link ExecutionReportService} for response generation.
+     *
+     * @param message   the incoming OrderCancelRequest message
+     * @param sessionId session identifier
+     */
+    private void handleIncomingCancelRequest(Message message, SessionID sessionId) {
+        try {
+            String clOrdId = message.getString(ClOrdID.FIELD);
+            String origClOrdId = getFieldSafe(message, OrigClOrdID.FIELD);
+    
+            log("CANCEL REQ IN", sessionId,
+                    String.format("ClOrdID=%s, OrigClOrdID=%s", clOrdId, origClOrdId));
+        } catch (FieldNotFound e) {
+            log("CANCEL REQ IN", sessionId,
+                    "OrderCancelRequest received (parse error): " + message.toRawString().replace('\001', '|'));
+        }
+    
+        if (executionReportService != null) {
+            executionReportService.handleOrderCancelRequest(message, sessionId);
+        }
+    }
+    
+    /**
+     * Handles an incoming OrderCancelReplaceRequest (35=G) on the Acceptor side.
+     * Logs the request and delegates to {@link ExecutionReportService} for response generation.
+     *
+     * @param message   the incoming OrderCancelReplaceRequest message
+     * @param sessionId session identifier
+     */
+    private void handleIncomingReplaceRequest(Message message, SessionID sessionId) {
+        try {
+            String clOrdId = message.getString(ClOrdID.FIELD);
+            String origClOrdId = getFieldSafe(message, OrigClOrdID.FIELD);
+            String qty = getFieldSafe(message, OrderQty.FIELD);
+            String price = getFieldSafe(message, Price.FIELD);
+    
+            log("REPLACE REQ IN", sessionId,
+                    String.format("ClOrdID=%s, OrigClOrdID=%s, NewQty=%s, NewPrice=%s",
+                            clOrdId, origClOrdId, qty, price));
+        } catch (FieldNotFound e) {
+            log("REPLACE REQ IN", sessionId,
+                    "OrderCancelReplaceRequest received (parse error): "
+                            + message.toRawString().replace('\001', '|'));
+        }
+    
+        if (executionReportService != null) {
+            executionReportService.handleOrderCancelReplaceRequest(message, sessionId);
+        }
+    }
+    
     // ── Helper methods ──────────────────────────────────────────────────
 
     /**
