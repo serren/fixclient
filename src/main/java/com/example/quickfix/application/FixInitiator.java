@@ -1,6 +1,7 @@
 package com.example.quickfix.application;
 
 import com.example.quickfix.latency.LatencyTracker;
+import com.example.quickfix.service.IncomingMessageProcessor;
 import com.example.quickfix.service.OrderGeneratorService;
 import com.example.quickfix.service.OrderService;
 import quickfix.ConfigError;
@@ -40,6 +41,7 @@ public class FixInitiator {
     private final LatencyTracker latencyTracker;
     private final OrderService orderService;
     private final OrderGeneratorService orderGeneratorService;
+    private final IncomingMessageProcessor incomingMessageProcessor;
 
     /**
      * Creates a FIX Initiator based on the provided session settings.
@@ -52,10 +54,12 @@ public class FixInitiator {
         this.latencyTracker = new LatencyTracker();
         this.orderService = new OrderService(latencyTracker);
         this.orderGeneratorService = new OrderGeneratorService(orderService);
+        this.incomingMessageProcessor = new IncomingMessageProcessor();
         this.application = new FixApplication();
         this.application.setConnectionType("initiator");
         this.application.setLatencyTracker(latencyTracker);
         this.application.setOrderService(orderService);
+        this.application.setIncomingMessageProcessor(incomingMessageProcessor);
     
         MessageStoreFactory storeFactory = new FileStoreFactory(settings);
         LogFactory logFactory = new FileLogFactory(settings);
@@ -107,6 +111,7 @@ public class FixInitiator {
         if (orderGeneratorService.isRunning()) {
             orderGeneratorService.stop();
         }
+        incomingMessageProcessor.shutdown();
         initiator.stop();
         System.out.println("[FIX Initiator] Stopped.");
     }

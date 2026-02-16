@@ -41,7 +41,7 @@ public class OrderGeneratorService {
     private static final DateTimeFormatter TIMESTAMP_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
-    private static final String DEFAULT_PROPERTIES_FILE = "order-generator.properties";
+    public static final String DEFAULT_PROPERTIES_FILE = "conf/order-generator.properties";
 
     // --- Rate control ---
     private int ordersPerBatch = 10;
@@ -233,7 +233,7 @@ public class OrderGeneratorService {
         System.out.printf("║  Orders per batch  : %-23d ║%n", ordersPerBatch);
         System.out.printf("║  Batch interval    : %-20d ms ║%n", batchIntervalMs);
         System.out.printf("║  Duration          : %-21d s ║%n", durationSeconds);
-        System.out.printf("║  Effective rate    : %-18.1f ord/s║%n", effectiveRate);
+        System.out.printf("║  Effective rate    : %-17.1f ord/s ║%n", effectiveRate);
         System.out.printf("║  Expected total    : ~%-22d ║%n", totalExpected);
         System.out.println("╠══════════════════════════════════════════════╣");
         System.out.printf("║  Symbol            : %-23s ║%n", symbol);
@@ -297,8 +297,8 @@ public class OrderGeneratorService {
         System.out.println("╠══════════════════════════════════════════════╣");
         System.out.printf("║  Total sent        : %-23d ║%n", sent);
         System.out.printf("║  Total failed      : %-23d ║%n", failed);
-        System.out.printf("║  Elapsed time      : %-20.2f s ║%n", elapsedSeconds);
-        System.out.printf("║  Actual rate       : %-18.1f ord/s ║%n", actualRate);
+        System.out.printf("║  Elapsed time      : %-21.2f s ║%n", elapsedSeconds);
+        System.out.printf("║  Actual rate       : %-17.1f ord/s ║%n", actualRate);
         System.out.println("╚══════════════════════════════════════════════╝");
         System.out.println("[OrderGenerator] Use 'stats' command to view round-trip latency statistics.");
     }

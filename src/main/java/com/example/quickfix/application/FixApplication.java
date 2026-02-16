@@ -2,6 +2,7 @@ package com.example.quickfix.application;
 
 import com.example.quickfix.latency.LatencyTracker;
 import com.example.quickfix.service.ExecutionReportService;
+import com.example.quickfix.service.IncomingMessageProcessor;
 import com.example.quickfix.service.OrderService;
 import com.example.quickfix.Starter;
 import quickfix.Application;
@@ -66,6 +67,9 @@ public class FixApplication implements Application {
     
     /** Execution report service for simulating venue responses (Acceptor mode only). Set externally. */
     private ExecutionReportService executionReportService;
+    
+    /** Asynchronous processor for incoming application messages. Set externally. */
+    private IncomingMessageProcessor incomingMessageProcessor;
 
     /**
      * Sets the connection type for correct operating mode detection.
@@ -102,6 +106,18 @@ public class FixApplication implements Application {
      */
     public void setExecutionReportService(ExecutionReportService executionReportService) {
         this.executionReportService = executionReportService;
+    }
+    
+    /**
+     * Sets the asynchronous incoming message processor.
+     * When set, incoming application messages from {@link #fromApp} will be
+     * dispatched to a separate thread pool instead of being processed
+     * in the QuickFIX/J session thread.
+     *
+     * @param incomingMessageProcessor the processor instance
+     */
+    public void setIncomingMessageProcessor(IncomingMessageProcessor incomingMessageProcessor) {
+        this.incomingMessageProcessor = incomingMessageProcessor;
     }
 
     // ── Lifecycle callbacks ─────────────────────────────────────────────
@@ -263,6 +279,11 @@ public class FixApplication implements Application {
     /**
      * Called when an application message is received from the counterparty
      * (ExecutionReport, MarketData, etc.).
+     * <p>
+     * If an {@link IncomingMessageProcessor} is configured, the message is dispatched
+     * to a separate thread pool for asynchronous processing, freeing the QuickFIX/J
+     * session thread to continue receiving messages. Otherwise, the message is
+     * processed synchronously in the session thread.
      *
      * @param message   incoming message
      * @param sessionId session identifier
@@ -273,6 +294,30 @@ public class FixApplication implements Application {
      */
     @Override
     public void fromApp(Message message, SessionID sessionId)
+            throws FieldNotFound, IncorrectDataFormat, IncorrectTagValue, UnsupportedMessageType {
+        if (incomingMessageProcessor != null) {
+            incomingMessageProcessor.submit(message, sessionId, this::processAppMessage);
+        } else {
+            processAppMessage(message, sessionId);
+        }
+    }
+    
+    /**
+     * Performs the actual processing of an incoming application message.
+     * <p>
+     * Dispatches the message to the appropriate handler based on the message type
+     * and the current operating mode (Acceptor or Initiator).
+     * This method may be called from the session thread (synchronous mode) or
+     * from a worker thread in the {@link IncomingMessageProcessor} (asynchronous mode).
+     *
+     * @param message   incoming message
+     * @param sessionId session identifier
+     * @throws FieldNotFound           if a required field is missing
+     * @throws IncorrectDataFormat     if the data format is incorrect
+     * @throws IncorrectTagValue       if a tag value is invalid
+     * @throws UnsupportedMessageType  if the message type is not supported
+     */
+    private void processAppMessage(Message message, SessionID sessionId)
             throws FieldNotFound, IncorrectDataFormat, IncorrectTagValue, UnsupportedMessageType {
         String msgType = message.getHeader().getString(MsgType.FIELD);
     

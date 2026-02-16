@@ -557,7 +557,7 @@ public class Starter {
         System.out.print("  Properties file [order-generator.properties]: ");
         String propsPath = scanner.nextLine().trim();
         if (propsPath.isEmpty()) {
-            propsPath = "order-generator.properties";
+            propsPath = OrderGeneratorService.DEFAULT_PROPERTIES_FILE;
         }
 
         try {

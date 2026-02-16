@@ -1,6 +1,7 @@
 package com.example.quickfix.application;
 
 import com.example.quickfix.service.ExecutionReportService;
+import com.example.quickfix.service.IncomingMessageProcessor;
 import quickfix.ConfigError;
 import quickfix.DefaultMessageFactory;
 import quickfix.FileLogFactory;
@@ -39,6 +40,7 @@ public class FixAcceptor {
     private final FixApplication application;
     private final SessionSettings settings;
     private final ExecutionReportService executionReportService;
+    private final IncomingMessageProcessor incomingMessageProcessor;
 
     /**
      * Creates a FIX Acceptor based on the provided session settings.
@@ -49,9 +51,11 @@ public class FixAcceptor {
     public FixAcceptor(SessionSettings settings) throws ConfigError {
         this.settings = settings;
         this.executionReportService = new ExecutionReportService();
+        this.incomingMessageProcessor = new IncomingMessageProcessor();
         this.application = new FixApplication();
         this.application.setConnectionType("acceptor");
         this.application.setExecutionReportService(executionReportService);
+        this.application.setIncomingMessageProcessor(incomingMessageProcessor);
     
         MessageStoreFactory storeFactory = new FileStoreFactory(settings);
         LogFactory logFactory = new FileLogFactory(settings);
@@ -103,6 +107,7 @@ public class FixAcceptor {
     public void stop() {
         System.out.println("\n[FIX Acceptor] Stopping...");
         executionReportService.shutdown();
+        incomingMessageProcessor.shutdown();
         acceptor.stop();
         System.out.println("[FIX Acceptor] Stopped.");
     }
