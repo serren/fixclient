@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *   <li>5 orders every 2 sec for 5 min → ordersPerBatch=5, batchIntervalMs=2000, durationSeconds=300</li>
  * </ul>
  */
-public class OrderGeneratorService {
+public class OrderGeneratorService implements IOrderGeneratorService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderGeneratorService.class);
 

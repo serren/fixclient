@@ -18,7 +18,7 @@ import java.util.Scanner;
 /**
  * Entry point of the console FIX application.
  * <p>
- * Supports all FIX protocol versions: 4.0, 4.1, 4.2, 4.3, 4.4, 5.0, 5.0SP1, 5.0SP2 (FIXT 1.1).
+ * Supports FIX protocol versions: 4.4.
  * The actual version is determined from the configuration file ({@code BeginString} field in the {@code [SESSION]} section).
  * <p>
  * Supports two operating modes:

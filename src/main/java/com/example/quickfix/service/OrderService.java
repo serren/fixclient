@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *   <li>OrderCancelReplaceRequest (35=G) — modify (cancel/replace) a previously sent order</li>
  * </ul>
  */
-public class OrderService {
+public class OrderService implements IOrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
     /** Atomic counter for generating unique ClOrdID values */

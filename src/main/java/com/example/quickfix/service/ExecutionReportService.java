@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>
  * This service is intended to be used on the <b>Acceptor</b> side only.
  */
-public class ExecutionReportService {
+public class ExecutionReportService implements IExecutionReportService {
 
     private static final DateTimeFormatter TIMESTAMP_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");

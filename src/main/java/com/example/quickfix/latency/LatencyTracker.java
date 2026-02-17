@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentMap;
  *   <li>Call {@link #printStatistics()} to display aggregated latency stats</li>
  * </ol>
  */
-public class LatencyTracker {
+public class LatencyTracker implements ILatencyTracker {
 
     /** Pending orders: ClOrdID → send timestamp (nanos) */
     private final ConcurrentMap<String, Long> pendingSendTimes = new ConcurrentHashMap<>();

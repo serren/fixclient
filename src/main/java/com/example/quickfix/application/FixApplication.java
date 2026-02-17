@@ -60,16 +60,16 @@ public class FixApplication implements Application {
     private String connectionType = "";
     
     /** Latency tracker for measuring order round-trip times. Set externally. */
-    private LatencyTracker latencyTracker;
+    private ILatencyTracker latencyTracker;
     
     /** Order service for managing active orders. Set externally. */
-    private OrderService orderService;
+    private IOrderService orderService;
     
     /** Execution report service for simulating venue responses (Acceptor mode only). Set externally. */
-    private ExecutionReportService executionReportService;
+    private IExecutionReportService executionReportService;
     
     /** Asynchronous processor for incoming application messages. Set externally. */
-    private IncomingMessageProcessor incomingMessageProcessor;
+    private IIncomingMessageProcessor incomingMessageProcessor;
 
     /**
      * Sets the connection type for correct operating mode detection.
@@ -85,7 +85,7 @@ public class FixApplication implements Application {
      *
      * @param latencyTracker latency tracker instance
      */
-    public void setLatencyTracker(LatencyTracker latencyTracker) {
+    public void setLatencyTracker(ILatencyTracker latencyTracker) {
         this.latencyTracker = latencyTracker;
     }
     
@@ -94,7 +94,7 @@ public class FixApplication implements Application {
      *
      * @param orderService order service instance
      */
-    public void setOrderService(OrderService orderService) {
+    public void setOrderService(IOrderService orderService) {
         this.orderService = orderService;
     }
     
@@ -104,7 +104,7 @@ public class FixApplication implements Application {
      *
      * @param executionReportService execution report service instance
      */
-    public void setExecutionReportService(ExecutionReportService executionReportService) {
+    public void setExecutionReportService(IExecutionReportService executionReportService) {
         this.executionReportService = executionReportService;
     }
     
@@ -116,7 +116,7 @@ public class FixApplication implements Application {
      *
      * @param incomingMessageProcessor the processor instance
      */
-    public void setIncomingMessageProcessor(IncomingMessageProcessor incomingMessageProcessor) {
+    public void setIncomingMessageProcessor(IIncomingMessageProcessor incomingMessageProcessor) {
         this.incomingMessageProcessor = incomingMessageProcessor;
     }
 

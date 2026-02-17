@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   processor.shutdown();
  * }</pre>
  */
-public class IncomingMessageProcessor {
+public class IncomingMessageProcessor implements IIncomingMessageProcessor {
 
     private static final DateTimeFormatter TIMESTAMP_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
