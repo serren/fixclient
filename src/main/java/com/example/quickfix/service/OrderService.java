@@ -1,6 +1,6 @@
 package com.example.quickfix.service;
 
-import com.example.quickfix.latency.LatencyTracker;
+import com.example.quickfix.latency.ILatencyTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import quickfix.Session;
@@ -23,6 +23,7 @@ import quickfix.fix44.OrderCancelReplaceRequest;
 import quickfix.fix44.OrderCancelRequest;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -31,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Service for creating and sending FIX NewOrderSingle (35=D) messages.
  * <p>
  * Each order is assigned a unique ClOrdID and its send time is recorded
- * in the {@link LatencyTracker} for round-trip latency measurement.
+ * in the {@link ILatencyTracker} for round-trip latency measurement.
  * <p>
  * Currently supports FIX 4.4 NewOrderSingle with the following fields:
  * <ul>
@@ -58,7 +59,7 @@ public class OrderService implements IOrderService {
     private final AtomicLong orderIdCounter = new AtomicLong(1);
     
     /** Latency tracker for measuring round-trip times */
-    private final LatencyTracker latencyTracker;
+    private final ILatencyTracker latencyTracker;
     
     /** Stores order details for cancel requests: ClOrdID → OrderDetails */
     private final ConcurrentMap<String, OrderDetails> activeOrders = new ConcurrentHashMap<>();
@@ -68,7 +69,7 @@ public class OrderService implements IOrderService {
      *
      * @param latencyTracker tracker for recording send/receive timestamps
      */
-    public OrderService(LatencyTracker latencyTracker) {
+    public OrderService(ILatencyTracker latencyTracker) {
         this.latencyTracker = latencyTracker;
     }
 
@@ -182,7 +183,7 @@ public class OrderService implements IOrderService {
      *
      * @return unmodifiable view of active orders keyed by ClOrdID
      */
-    public ConcurrentMap<String, OrderDetails> getActiveOrders() {
+    public Map<String, OrderDetails> getActiveOrders() {
         return activeOrders;
     }
     
@@ -288,17 +289,6 @@ public class OrderService implements IOrderService {
                             effectivePrice, oldDetails.ordType));
         }
     }
-    
-    /**
-     * Returns the latency tracker used by this service.
-     *
-     * @return latency tracker instance
-     */
-    public LatencyTracker getLatencyTracker() {
-        return latencyTracker;
-    }
-
-    // ── Internal methods ────────────────────────────────────────────────
 
     /**
      * Creates and sends a NewOrderSingle (35=D) FIX 4.4 message.
@@ -367,57 +357,5 @@ public class OrderService implements IOrderService {
      */
     private String generateClOrdId() {
         return String.format("ORD-%05d", orderIdCounter.getAndIncrement());
-    }
-
-    // ── Inner classes ───────────────────────────────────────────────────
-
-    /**
-     * Holds the essential details of a sent order, needed for constructing
-     * cancel and replace requests.
-     */
-    public static class OrderDetails {
-        final String symbol;
-        final char side;
-        final double quantity;
-        final double price;
-        final char ordType;
-    
-        public OrderDetails(String symbol, char side, double quantity, double price, char ordType) {
-            this.symbol = symbol;
-            this.side = side;
-            this.quantity = quantity;
-            this.price = price;
-            this.ordType = ordType;
-        }
-    
-        public String getSymbol() {
-            return symbol;
-        }
-    
-        public char getSide() {
-            return side;
-        }
-    
-        public double getQuantity() {
-            return quantity;
-        }
-    
-        public double getPrice() {
-            return price;
-        }
-    
-        public char getOrdType() {
-            return ordType;
-        }
-    
-        @Override
-        public String toString() {
-            String base = String.format("Symbol=%s, Side=%s, Qty=%.0f",
-                    symbol, side == Side.BUY ? "BUY" : "SELL", quantity);
-            if (ordType == OrdType.LIMIT) {
-                base += String.format(", Price=%.2f", price);
-            }
-            return base + ", Type=" + (ordType == OrdType.LIMIT ? "LIMIT" : "MARKET");
-        }
     }
 }

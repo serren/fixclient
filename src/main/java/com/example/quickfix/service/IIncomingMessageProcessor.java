@@ -1,11 +1,8 @@
 package com.example.quickfix.service;
 
-import quickfix.FieldNotFound;
-import quickfix.IncorrectDataFormat;
-import quickfix.IncorrectTagValue;
+import com.example.quickfix.handler.MessageHandler;
 import quickfix.Message;
 import quickfix.SessionID;
-import quickfix.UnsupportedMessageType;
 
 /**
  * Asynchronous processor for incoming FIX application messages.
@@ -33,27 +30,4 @@ public interface IIncomingMessageProcessor {
      * Gracefully shuts down the processor, waiting for queued messages to be processed.
      */
     void shutdown();
-
-    /**
-     * Functional interface for message handling callbacks.
-     * <p>
-     * Implementations perform the actual business logic for processing
-     * incoming FIX messages (parsing, logging, state updates, response generation, etc.).
-     */
-    @FunctionalInterface
-    interface MessageHandler {
-
-        /**
-         * Handles an incoming FIX application message.
-         *
-         * @param message   the incoming message
-         * @param sessionId the session the message was received on
-         * @throws FieldNotFound          if a required field is missing
-         * @throws IncorrectDataFormat    if the data format is incorrect
-         * @throws IncorrectTagValue      if a tag value is invalid
-         * @throws UnsupportedMessageType if the message type is not supported
-         */
-        void handle(Message message, SessionID sessionId)
-                throws FieldNotFound, IncorrectDataFormat, IncorrectTagValue, UnsupportedMessageType;
-    }
 }

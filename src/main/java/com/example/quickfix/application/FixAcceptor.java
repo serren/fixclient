@@ -1,20 +1,20 @@
 package com.example.quickfix.application;
 
+import com.example.quickfix.handler.CancelOrderHandler;
+import com.example.quickfix.handler.NewSingleOrderHandler;
+import com.example.quickfix.handler.ReplaceOrderHandler;
 import com.example.quickfix.service.ExecutionReportService;
+import com.example.quickfix.service.IExecutionReportService;
 import com.example.quickfix.service.IncomingMessageProcessor;
 import quickfix.ConfigError;
-import quickfix.DefaultMessageFactory;
-import quickfix.FileLogFactory;
-import quickfix.FileStoreFactory;
-import quickfix.LogFactory;
-import quickfix.MessageFactory;
-import quickfix.MessageStoreFactory;
 import quickfix.RuntimeError;
 import quickfix.SessionID;
 import quickfix.SessionSettings;
 import quickfix.SocketAcceptor;
+import quickfix.field.MsgType;
 
 import java.util.Iterator;
+import java.util.Scanner;
 
 /**
  * Wrapper around {@link SocketAcceptor} for managing a FIX Acceptor session.
@@ -34,13 +34,12 @@ import java.util.Iterator;
  *   acceptor.stop();
  * }</pre>
  */
-public class FixAcceptor {
+public class FixAcceptor extends FixApplication {
 
     private final SocketAcceptor acceptor;
-    private final FixApplication application;
-    private final SessionSettings settings;
-    private final ExecutionReportService executionReportService;
-    private final IncomingMessageProcessor incomingMessageProcessor;
+
+    /** Execution report service for simulating venue responses (Acceptor mode only). Set externally. */
+    private final IExecutionReportService executionReportService;
 
     /**
      * Creates a FIX Acceptor based on the provided session settings.
@@ -49,20 +48,12 @@ public class FixAcceptor {
      * @throws ConfigError if the configuration is invalid
      */
     public FixAcceptor(SessionSettings settings) throws ConfigError {
-        this.settings = settings;
+        super(settings);
         this.executionReportService = new ExecutionReportService();
         this.incomingMessageProcessor = new IncomingMessageProcessor();
-        this.application = new FixApplication();
-        this.application.setConnectionType("acceptor");
-        this.application.setExecutionReportService(executionReportService);
-        this.application.setIncomingMessageProcessor(incomingMessageProcessor);
-    
-        MessageStoreFactory storeFactory = new FileStoreFactory(settings);
-        LogFactory logFactory = new FileLogFactory(settings);
-        MessageFactory messageFactory = new DefaultMessageFactory();
 
         this.acceptor = new SocketAcceptor(
-                application,
+                this,
                 storeFactory,
                 settings,
                 logFactory,
@@ -70,6 +61,28 @@ public class FixAcceptor {
         );
 
         printSessionInfo();
+    }
+
+    @Override
+    protected void initHandlers() {
+        super.initHandlers();
+        handlers.put(MsgType.ORDER_SINGLE, new NewSingleOrderHandler(executionReportService));
+        handlers.put(MsgType.ORDER_CANCEL_REQUEST, new CancelOrderHandler(executionReportService));
+        handlers.put(MsgType.ORDER_CANCEL_REPLACE_REQUEST, new ReplaceOrderHandler(executionReportService));
+    }
+
+    @Override
+    public void onLogon(SessionID sessionId) {
+        super.onLogon(sessionId);
+        System.out.println("\n[FIX Acceptor] NEW CLIENT CONNECTED: " + sessionId.getTargetCompID()
+                + " → " + sessionId.getSenderCompID() + " [" + sessionId.getBeginString() + "]");
+    }
+
+    @Override
+    public void onLogout(SessionID sessionId) {
+        super.onLogout(sessionId);
+        System.out.println("\n[FIX Acceptor] CLIENT DISCONNECTED: " + sessionId.getTargetCompID()
+                + " → " + sessionId.getSenderCompID() + " [" + sessionId.getBeginString() + "]");
     }
 
     /**
@@ -90,6 +103,7 @@ public class FixAcceptor {
         System.out.println("\n[FIX Acceptor] Starting...");
         acceptor.start();
         System.out.println("[FIX Acceptor] Started. Listening for incoming connections on port " + getAcceptPort() + "...");
+        runAcceptorCommandLoop();
     }
 
     /**
@@ -121,7 +135,7 @@ public class FixAcceptor {
         Iterator<SessionID> it = acceptor.getSessions().iterator();
         if (it.hasNext()) {
             SessionID sessionId = it.next();
-            application.initiateLogout(sessionId, reason);
+            initiateLogout(sessionId, reason);
         } else {
             System.out.println("[FIX Acceptor] No active sessions to logout.");
         }
@@ -135,7 +149,7 @@ public class FixAcceptor {
     public int getLoggedOnSessionCount() {
         int count = 0;
         for (SessionID sessionId : acceptor.getSessions()) {
-            if (application.isLoggedOn(sessionId)) {
+            if (isLoggedOn(sessionId)) {
                 count++;
             }
         }
@@ -152,6 +166,52 @@ public class FixAcceptor {
     }
 
     /**
+     * Interactive command loop for Acceptor mode.
+     */
+    private void runAcceptorCommandLoop() {
+        System.out.println("\n");
+        System.out.println("╔══════════════════════════════════════════════╗");
+        System.out.println("║      FIX Acceptor — Available commands:      ║");
+        System.out.println("║  status  — check session status & clients    ║");
+        System.out.println("║  clients — show connected clients            ║");
+        System.out.println("║  logout  — send Logout to connected client   ║");
+        System.out.println("║  quit    — stop acceptor and exit            ║");
+        System.out.println("╚══════════════════════════════════════════════╝");
+
+        try (Scanner scanner = new Scanner(System.in)) {
+            while (true) {
+                System.out.print("\nfix-acceptor> ");
+                String command = scanner.nextLine().trim().toLowerCase();
+
+                switch (command) {
+                    case "status" -> {
+                        int loggedOn = getLoggedOnSessionCount();
+                        int total = getTotalSessionCount();
+                        System.out.println("Sessions: " + loggedOn + "/" + total + " logged on"
+                                + (loggedOn > 0 ? " ✓" : " ✗"));
+                    }
+                    case "clients" -> printConnectedClients();
+                    case "logout" -> {
+                        System.out.print("Logout reason (optional, press ENTER to skip): ");
+                        String reason = scanner.nextLine().trim();
+                        logout(reason.isEmpty() ? "Server initiated logout" : reason);
+                        System.out.println("Logout request sent.");
+                    }
+                    case "quit", "exit", "q" -> {
+                        stop();
+                        System.out.println("Goodbye!");
+                        return;
+                    }
+                    case "help" -> System.out.println("Commands: status, clients, logout, quit, help");
+                    case "" -> { /* ignore empty input */ }
+                    default ->
+                            System.out.println("Unknown command: '" + command + "'. Type 'help' for available commands.");
+                }
+            }
+        }
+    }
+
+    /**
      * Prints information about the current number of connected clients.
      */
     public void printConnectedClients() {
@@ -163,26 +223,12 @@ public class FixAcceptor {
         if (loggedOn > 0) {
             System.out.println("[FIX Acceptor] Active sessions:");
             for (SessionID sessionId : acceptor.getSessions()) {
-                if (application.isLoggedOn(sessionId)) {
+                if (isLoggedOn(sessionId)) {
                     System.out.println("  - " + sessionId.getTargetCompID() + " → " 
                             + sessionId.getSenderCompID() + " [" + sessionId.getBeginString() + "]");
                 }
             }
         }
-    }
-
-    /**
-     * Returns the {@link FixApplication} object for direct access to callbacks.
-     */
-    public FixApplication getApplication() {
-        return application;
-    }
-
-    /**
-     * Returns the session settings.
-     */
-    public SessionSettings getSettings() {
-        return settings;
     }
 
     /**
@@ -205,8 +251,6 @@ public class FixAcceptor {
         return "N/A";
     }
 
-    // ── Internal methods ────────────────────────────────────────────────
-    
     /**
      * Prints information about configured sessions.
      */

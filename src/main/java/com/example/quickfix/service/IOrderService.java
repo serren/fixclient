@@ -2,7 +2,7 @@ package com.example.quickfix.service;
 
 import quickfix.SessionID;
 
-import java.util.concurrent.ConcurrentMap;
+import java.util.Map;
 
 /**
  * Service for creating and sending FIX order messages.
@@ -74,7 +74,7 @@ public interface IOrderService {
      *
      * @return unmodifiable view of active orders keyed by ClOrdID
      */
-    ConcurrentMap<String, OrderDetails> getActiveOrders();
+    Map<String, OrderDetails> getActiveOrders();
 
     /**
      * Removes an order from the active orders map.

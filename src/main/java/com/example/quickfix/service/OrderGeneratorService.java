@@ -56,7 +56,7 @@ public class OrderGeneratorService implements IOrderGeneratorService {
     private double price = 150.00;
 
     // --- Runtime state ---
-    private final OrderService orderService;
+    private final IOrderService orderService;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong totalSent = new AtomicLong(0);
     private final AtomicLong totalFailed = new AtomicLong(0);
@@ -70,7 +70,7 @@ public class OrderGeneratorService implements IOrderGeneratorService {
      *
      * @param orderService the order service used to send FIX orders
      */
-    public OrderGeneratorService(OrderService orderService) {
+    public OrderGeneratorService(IOrderService orderService) {
         this.orderService = orderService;
     }
 
