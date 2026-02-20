@@ -21,10 +21,10 @@ import quickfix.field.OrigClOrdID;
 import quickfix.field.Price;
 import quickfix.field.Symbol;
 
-import static com.example.quickfix.MessageUtil.describeExecType;
-import static com.example.quickfix.MessageUtil.describeOrdStatus;
-import static com.example.quickfix.MessageUtil.getDoubleSafe;
-import static com.example.quickfix.MessageUtil.getFieldSafe;
+import static com.example.quickfix.util.MessageUtil.describeExecType;
+import static com.example.quickfix.util.MessageUtil.describeOrdStatus;
+import static com.example.quickfix.util.MessageUtil.getDoubleSafe;
+import static com.example.quickfix.util.MessageUtil.getFieldSafe;
 
 public class ExecutionMessageHandler extends AbstractMessageHandler {
 

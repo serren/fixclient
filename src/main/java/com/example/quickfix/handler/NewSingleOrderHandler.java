@@ -12,7 +12,7 @@ import quickfix.field.OrderQty;
 import quickfix.field.Price;
 import quickfix.field.Symbol;
 
-import static com.example.quickfix.MessageUtil.getFieldSafe;
+import static com.example.quickfix.util.MessageUtil.getFieldSafe;
 
 public class NewSingleOrderHandler extends AbstractExecutionMessageHandler {
 

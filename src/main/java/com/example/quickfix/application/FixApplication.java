@@ -28,7 +28,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.example.quickfix.MessageUtil.extractText;
+import static com.example.quickfix.util.MessageUtil.extractText;
 
 /**
  * Implementation of the {@link Application} interface for FIX Initiator/Acceptor.

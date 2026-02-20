@@ -13,7 +13,7 @@ import quickfix.field.OrderQty;
 import quickfix.field.OrigClOrdID;
 import quickfix.field.Price;
 
-import static com.example.quickfix.MessageUtil.getFieldSafe;
+import static com.example.quickfix.util.MessageUtil.getFieldSafe;
 
 public class ReplaceOrderHandler extends AbstractExecutionMessageHandler {
 

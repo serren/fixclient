@@ -13,11 +13,11 @@ import quickfix.field.OrdStatus;
 import quickfix.field.OrderID;
 import quickfix.field.OrigClOrdID;
 
-import static com.example.quickfix.MessageUtil.describeCxlRejReason;
-import static com.example.quickfix.MessageUtil.describeCxlRejResponseTo;
-import static com.example.quickfix.MessageUtil.describeOrdStatus;
-import static com.example.quickfix.MessageUtil.extractText;
-import static com.example.quickfix.MessageUtil.getFieldSafe;
+import static com.example.quickfix.util.MessageUtil.describeCxlRejReason;
+import static com.example.quickfix.util.MessageUtil.describeCxlRejResponseTo;
+import static com.example.quickfix.util.MessageUtil.describeOrdStatus;
+import static com.example.quickfix.util.MessageUtil.extractText;
+import static com.example.quickfix.util.MessageUtil.getFieldSafe;
 
 public class OrderCancelRejectHanlder extends AbstractMessageHandler {
     @Override

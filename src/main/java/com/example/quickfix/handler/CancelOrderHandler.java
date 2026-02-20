@@ -11,7 +11,7 @@ import quickfix.UnsupportedMessageType;
 import quickfix.field.ClOrdID;
 import quickfix.field.OrigClOrdID;
 
-import static com.example.quickfix.MessageUtil.getFieldSafe;
+import static com.example.quickfix.util.MessageUtil.getFieldSafe;
 
 public class CancelOrderHandler extends AbstractExecutionMessageHandler {
     public CancelOrderHandler(IExecutionReportService executionReportService) {

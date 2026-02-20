@@ -1,4 +1,4 @@
-package com.example.quickfix;
+package com.example.quickfix.util;
 
 import quickfix.FieldNotFound;
 import quickfix.Message;
